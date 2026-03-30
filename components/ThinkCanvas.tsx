@@ -96,7 +96,7 @@ export default function ThinkCanvas({ sessionId, onTitleChange }: ThinkCanvasPro
   const nodesRef = useRef(nodes)
   const edgesRef = useRef(edges)
   const layoutDirRef = useRef<'LR' | 'TB'>('LR')
-  const rfInstanceRef = useRef<ReactFlowInstance | null>(null)
+  const rfInstanceRef = useRef<ReactFlowInstance<ResearchNodeType, Edge> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => { nodesRef.current = nodes }, [nodes])
@@ -195,7 +195,7 @@ export default function ThinkCanvas({ sessionId, onTitleChange }: ThinkCanvasPro
         type: 'research',
         position,
         style: { width: 400, height: 320 },
-        data: { nodeType, content: '', prompt, isLoading: true, context, onContinue: () => {}, onExpand: () => {}, onDelete: () => {}, onUpdateNote: () => {} },
+        data: { nodeType, content: '', prompt, isLoading: true, context, onContinue: () => {}, onExpand: () => {}, onDelete: () => {}, onDeleteCascade: () => {}, onUpdateNote: () => {} },
       }
       return attachCallbacks(node)
     },
