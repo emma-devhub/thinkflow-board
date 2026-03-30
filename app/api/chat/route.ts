@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
-// Simple in-memory rate limiter: max 10 requests per IP per minute
+// Simple in-memory rate limiter: max 20 requests per IP per minute
 const rateLimitMap = new Map<string, { count: number; resetAt: number }>()
-const RATE_LIMIT = 10
+const RATE_LIMIT = 20
 const RATE_WINDOW_MS = 60_000
 
 function checkRateLimit(ip: string): boolean {
@@ -17,17 +17,18 @@ function checkRateLimit(ip: string): boolean {
   return true
 }
 
-const GEMINI_API_URL =
-  'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent'
+const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions'
+const MODEL = 'llama-3.3-70b-versatile'
+
+const SYSTEM_PROMPT = `You are a research assistant building a visual mindmap. ALWAYS structure your response like this:
+1. A brief 2–3 sentence introduction (no header).
+2. Then 3–5 major sections, each starting with "## Section Title" on its own line.
+Each section: focused, 3–6 sentences, self-contained. Use **bold** for key terms.
+Never skip the ## section headers — they are required for the mindmap layout.`
 
 interface ConversationMessage {
   role: 'user' | 'model'
   content: string
-}
-
-interface GeminiContent {
-  role: string
-  parts: { text: string }[]
 }
 
 export async function POST(req: NextRequest) {
@@ -44,55 +45,45 @@ export async function POST(req: NextRequest) {
     context: ConversationMessage[]
   }
 
-  const apiKey = process.env.GEMINI_API_KEY
+  const apiKey = process.env.GROQ_API_KEY
   if (!apiKey) {
     return NextResponse.json({ error: 'API key not configured' }, { status: 500 })
   }
 
-  // Build Gemini contents from context + new message
-  const contents: GeminiContent[] = [
+  // Build OpenAI-compatible messages: system + conversation history + new message
+  const messages = [
+    { role: 'system', content: SYSTEM_PROMPT },
     ...context.map((m) => ({
-      role: m.role,
-      parts: [{ text: m.content }],
+      role: m.role === 'model' ? 'assistant' : 'user',
+      content: m.content,
     })),
-    { role: 'user', parts: [{ text: message }] },
+    { role: 'user', content: message },
   ]
 
-  const geminiRes = await fetch(`${GEMINI_API_URL}?key=${apiKey}&alt=sse`, {
+  const groqRes = await fetch(GROQ_API_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
     body: JSON.stringify({
-      contents,
-      generationConfig: {
-        temperature: 0.7,
-        thinkingConfig: {
-          thinkingBudget: 0,
-        },
-      },
-      systemInstruction: {
-        parts: [
-          {
-            text: `You are a research assistant building a visual mindmap. ALWAYS structure your response like this:
-1. A brief 2–3 sentence introduction (no header).
-2. Then 3–5 major sections, each starting with "## Section Title" on its own line.
-Each section: focused, 3–6 sentences, self-contained. Use **bold** for key terms.
-Never skip the ## section headers — they are required for the mindmap layout.`,
-          },
-        ],
-      },
+      model: MODEL,
+      messages,
+      temperature: 0.7,
+      stream: true,
     }),
   })
 
-  if (!geminiRes.ok) {
-    const err = await geminiRes.text()
-    return NextResponse.json({ error: err }, { status: geminiRes.status })
+  if (!groqRes.ok) {
+    const err = await groqRes.text()
+    return NextResponse.json({ error: err }, { status: groqRes.status })
   }
 
-  // Stream SSE from Gemini → plain text stream to client
+  // Stream SSE from Groq → plain text stream to client
   const encoder = new TextEncoder()
   const readable = new ReadableStream({
     async start(controller) {
-      const reader = geminiRes.body!.getReader()
+      const reader = groqRes.body!.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
 
@@ -110,7 +101,7 @@ Never skip the ## section headers — they are required for the mindmap layout.`
           if (data === '[DONE]') continue
           try {
             const parsed = JSON.parse(data)
-            const text = parsed?.candidates?.[0]?.content?.parts?.[0]?.text
+            const text = parsed?.choices?.[0]?.delta?.content
             if (text) {
               controller.enqueue(encoder.encode(text))
             }

@@ -44,7 +44,7 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript |
 | Canvas | React Flow (`@xyflow/react`) |
-| AI | Google Gemini 2.5 Flash (streaming) |
+| AI | Groq — Llama 3.3 70B (streaming) |
 | Styling | Tailwind CSS |
 | Fonts | Lora (serif) + JetBrains Mono |
 | Persistence | Browser localStorage |
@@ -55,12 +55,12 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 
 ### Prerequisites
 - Node.js 18+
-- A [Google AI Studio](https://aistudio.google.com/apikey) API key (free tier available)
+- A [Groq](https://console.groq.com) API key (free, no credit card required)
 
 ### Installation
 
 ```bash
-git clone https://github.com/emmayisun/thinkflow.git
+git clone https://github.com/emma-devhub/thinkflow.git
 cd thinkflow
 npm install
 ```
@@ -70,7 +70,7 @@ npm install
 Create a `.env.local` file in the project root:
 
 ```env
-GEMINI_API_KEY=your_api_key_here
+GROQ_API_KEY=your_groq_api_key_here
 ```
 
 ### Run
