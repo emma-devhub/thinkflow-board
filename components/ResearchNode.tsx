@@ -261,7 +261,7 @@ export default function ResearchNode({ data }: NodeProps<ResearchNodeType>) {
               className="nodrag nopan shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-opacity disabled:opacity-30"
               style={{ background: 'hsl(0, 0%, 20%)', color: 'white' }}
               onClick={handleSubmit}
-              disabled={!input.trim() || data.isLoading || submitting}
+              disabled={!input.trim() || data.isLoading}
             >
               ↗
             </button>
