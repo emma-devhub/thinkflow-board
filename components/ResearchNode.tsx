@@ -8,19 +8,20 @@ export type ResearchNodeType = Node<NodeData, 'research'>
 
 export default function ResearchNode({ data }: NodeProps<ResearchNodeType>) {
   const [input, setInput] = useState('')
-  const [submitting, setSubmitting] = useState(false)
   const [hovered, setHovered] = useState(false)
+  const [noteEditing, setNoteEditing] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const pendingRef = useRef(false)  // ref-based guard — synchronous, survives batched re-renders
 
-
-  const handleSubmit = useCallback(async () => {
+  const handleSubmit = useCallback(() => {
     const text = input.trim()
-    if (!text || submitting || data.isLoading) return
-    setSubmitting(true)
+    if (!text || pendingRef.current || data.isLoading) return
+    pendingRef.current = true
     setInput('')
     data.onContinue(text, data.context)
-    setSubmitting(false)
-  }, [input, submitting, data])
+    // reset after a tick so the UI unblocks if onContinue is synchronous
+    setTimeout(() => { pendingRef.current = false }, 300)
+  }, [input, data])
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -107,21 +108,42 @@ export default function ResearchNode({ data }: NodeProps<ResearchNodeType>) {
               </button>
             )}
             {hovered && (
-              <button
-                className="nodrag nopan w-6 h-6 flex items-center justify-center rounded text-xs transition-colors"
-                style={{ color: 'hsl(0, 0%, 55%)' }}
-                onMouseEnter={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.background = 'hsl(0, 60%, 94%)'
-                  ;(e.currentTarget as HTMLElement).style.color = 'hsl(0, 65%, 45%)'
-                }}
-                onMouseLeave={(e) => {
-                  ;(e.currentTarget as HTMLElement).style.background = 'transparent'
-                  ;(e.currentTarget as HTMLElement).style.color = 'hsl(0, 0%, 55%)'
-                }}
-                onClick={() => data.onDelete()}
-              >
-                ✕
-              </button>
+              <div className="flex items-center gap-0.5">
+                {/* Delete this node only */}
+                <button
+                  className="nodrag nopan w-6 h-6 flex items-center justify-center rounded text-xs transition-colors"
+                  style={{ color: 'hsl(0, 0%, 55%)' }}
+                  title="Delete this card"
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.background = 'hsl(0, 60%, 94%)'
+                    ;(e.currentTarget as HTMLElement).style.color = 'hsl(0, 65%, 45%)'
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                    ;(e.currentTarget as HTMLElement).style.color = 'hsl(0, 0%, 55%)'
+                  }}
+                  onClick={() => data.onDelete()}
+                >
+                  ✕
+                </button>
+                {/* Delete this node + all children */}
+                <button
+                  className="nodrag nopan h-6 flex items-center justify-center rounded text-xs transition-colors px-1"
+                  style={{ color: 'hsl(0, 0%, 55%)', fontSize: 9, letterSpacing: '-0.5px' }}
+                  title="Delete with all children"
+                  onMouseEnter={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.background = 'hsl(0, 60%, 94%)'
+                    ;(e.currentTarget as HTMLElement).style.color = 'hsl(0, 65%, 45%)'
+                  }}
+                  onMouseLeave={(e) => {
+                    ;(e.currentTarget as HTMLElement).style.background = 'transparent'
+                    ;(e.currentTarget as HTMLElement).style.color = 'hsl(0, 0%, 55%)'
+                  }}
+                  onClick={() => data.onDeleteCascade?.()}
+                >
+                  ✕⊏
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -144,22 +166,44 @@ export default function ResearchNode({ data }: NodeProps<ResearchNodeType>) {
           </div>
         )}
 
-        {/* Note: editable textarea */}
+        {/* Note: view mode (markdown) or edit mode (textarea) */}
         {data.nodeType === 'note' ? (
-          <textarea
-            className="nodrag nopan nowheel flex-1 w-full px-4 py-3 text-sm resize-none outline-none"
-            style={{
-              color: 'hsl(38, 30%, 25%)',
-              fontFamily: 'var(--font-lora)',
-              background: 'transparent',
-              userSelect: 'text',
-              cursor: 'text',
-              lineHeight: '1.6',
-            }}
-            placeholder="Write your thoughts…"
-            defaultValue={data.content}
-            onChange={(e) => data.onUpdateNote(e.target.value)}
-          />
+          noteEditing ? (
+            <textarea
+              autoFocus
+              className="nodrag nopan nowheel flex-1 w-full px-4 py-3 text-sm resize-none outline-none"
+              style={{
+                color: 'hsl(38, 30%, 25%)',
+                fontFamily: 'var(--font-lora)',
+                background: 'transparent',
+                userSelect: 'text',
+                cursor: 'text',
+                lineHeight: '1.6',
+              }}
+              placeholder="Write your thoughts…"
+              defaultValue={data.content}
+              onChange={(e) => data.onUpdateNote(e.target.value)}
+              onBlur={() => setNoteEditing(false)}
+            />
+          ) : (
+            <div
+              className="px-4 py-3 overflow-y-auto flex-1 nodrag nopan nowheel"
+              style={{ minHeight: 0, cursor: 'text', userSelect: 'text' }}
+              onClick={() => setNoteEditing(true)}
+            >
+              {data.content ? (
+                <div
+                  className="text-sm leading-relaxed prose prose-sm max-w-none"
+                  style={{ color: 'hsl(38, 30%, 25%)', fontFamily: 'var(--font-lora)' }}
+                  dangerouslySetInnerHTML={{ __html: formatContent(data.content) }}
+                />
+              ) : (
+                <span className="text-sm" style={{ color: 'hsl(38, 45%, 65%)', fontFamily: 'var(--font-lora)', fontStyle: 'italic' }}>
+                  Click to write your thoughts…
+                </span>
+              )}
+            </div>
+          )
         ) : (
           <>
             {/* AI Content */}
@@ -211,7 +255,7 @@ export default function ResearchNode({ data }: NodeProps<ResearchNodeType>) {
                 autoResize()
               }}
               onKeyDown={handleKeyDown}
-              disabled={data.isLoading || submitting}
+              disabled={data.isLoading}
             />
             <button
               className="nodrag nopan shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-opacity disabled:opacity-30"

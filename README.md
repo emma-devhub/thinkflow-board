@@ -1,36 +1,131 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ThinkFlow
+
+**A visual AI research tool that turns conversations into explorable mind maps.**
+
+ThinkFlow lets you start with any research topic, receive an AI-generated response as a draggable card, then branch from any card to explore sub-topics — building an infinite, visual conversation tree powered by Google Gemini.
+
+---
+
+## Features
+
+### Visual Research Tree
+Start a topic and watch your research grow into a branching graph. Each card lives on an infinite canvas — drag, zoom, and rearrange freely.
+
+### Multi-Session Sidebar
+Manage multiple independent research sessions. Each session persists in your browser with its own canvas state, so you can pick up exactly where you left off.
+
+### AI Response Cards
+Every question spawns a new card, streamed token-by-token from Gemini 2.5 Flash. Branch from any card to explore sub-topics with full conversation context preserved along each branch path.
+
+### Markdown to Mind Map
+Ask Gemini to return a structured analysis using `##` and `###` headers — ThinkFlow auto-parses the response and builds a **two-level mind map** in one click, with nodes automatically laid out on the canvas.
+
+### My Note Cards
+Drop freeform sticky notes anywhere on the canvas. Notes support Markdown rendering and can also be used as branch points to query the AI in context.
+
+### Flexible Layout
+Toggle between **Left→Right** and **Top→Bottom** tree layouts to match your thinking style.
+
+### Deletable Edges
+Hover any connection line to reveal a delete button — restructure your graph without losing nodes.
+
+### Cascade Delete
+Remove a node and all its descendants in one action, or delete a single card while keeping the rest of the tree.
+
+### Expand to Full Screen
+Click "⤢ expand" on any card to read the full response in a distraction-free overlay.
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Framework | Next.js 15 (App Router) |
+| Language | TypeScript |
+| Canvas | React Flow (`@xyflow/react`) |
+| AI | Google Gemini 2.5 Flash (streaming) |
+| Styling | Tailwind CSS |
+| Fonts | Lora (serif) + JetBrains Mono |
+| Persistence | Browser localStorage |
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+- Node.js 18+
+- A [Google AI Studio](https://aistudio.google.com/apikey) API key (free tier available)
+
+### Installation
+
+```bash
+git clone https://github.com/emmayisun/thinkflow.git
+cd thinkflow
+npm install
+```
+
+### Environment Setup
+
+Create a `.env.local` file in the project root:
+
+```env
+GEMINI_API_KEY=your_api_key_here
+```
+
+### Run
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Usage
 
-## Learn More
+1. **Start a session** — Type your research topic into the center prompt and press Enter
+2. **Branch out** — Type a follow-up in any card's "Continue researching…" box to create a child node
+3. **Build a mind map** — Ask for a structured breakdown using headers; click the mindmap button on the response card to auto-layout
+4. **Take notes** — Click **+ My Note** to drop a sticky note anywhere on the canvas
+5. **Manage sessions** — Use the left sidebar to switch between research sessions or start a new one
 
-To learn more about Next.js, take a look at the following resources:
+---
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Architecture
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```
+thinkflow/
+├── app/
+│   ├── page.tsx              # Root layout — sidebar + canvas
+│   └── api/chat/route.ts     # Streaming Gemini API endpoint
+├── components/
+│   ├── ThinkCanvas.tsx       # React Flow canvas, node/edge state, branch logic
+│   ├── ResearchNode.tsx      # Card UI — AI content, note editing, branch input
+│   ├── DeletableEdge.tsx     # Custom edge with hover-to-delete
+│   ├── ExpandModal.tsx       # Full-screen content overlay
+│   └── Sidebar.tsx           # Session management panel
+├── lib/
+│   ├── gemini.ts             # Gemini streaming client
+│   └── sessions.ts           # localStorage session helpers
+└── types/index.ts            # Shared TypeScript interfaces
+```
 
-## Deploy on Vercel
+---
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Design Decisions
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**Conversation context per branch** — When you branch from a node, the full path from root to that node is sent as conversation history. This means each branch maintains its own coherent context, so Gemini always understands how the current question relates to the broader research.
+
+**Streaming into nodes** — Responses stream token-by-token directly into the node's content field via React state, so you see the answer appear in real time without blocking the canvas.
+
+**Ref-based submit guard** — The "Continue researching" submit uses a `useRef` guard (not `useState`) to prevent duplicate API calls from rapid Enter+click, since React's state batching can't provide synchronous guarantees.
+
+**Two-level mindmap layout** — The auto-layout algorithm counts leaf slots across all sections to evenly distribute vertical/horizontal space, positioning parent L1 nodes at the centroid of their children.
+
+---
+
+## License
+
+MIT

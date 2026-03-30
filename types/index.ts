@@ -18,5 +18,6 @@ export interface NodeData extends Record<string, unknown> {
   onContinue: (text: string, context: ConversationMessage[]) => void
   onExpand: (content: string, prompt: string) => void
   onDelete: () => void
+  onDeleteCascade: () => void
   onUpdateNote: (content: string) => void
 }
