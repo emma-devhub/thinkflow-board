@@ -120,19 +120,6 @@ export default function Home() {
             onMoveSession={handleMoveSession}
             onToggleChecked={handleToggleChecked}
           />
-          {/* Back to canvas */}
-          <button
-            onClick={() => setView('canvas')}
-            style={{
-              position: 'absolute', top: 14, right: 16, zIndex: 10,
-              background: 'none', border: '1px solid #444', borderRadius: 7,
-              fontSize: 12, color: '#ccc', padding: '5px 11px', cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.borderColor = '#888' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#ccc'; (e.currentTarget as HTMLElement).style.borderColor = '#444' }}
-          >
-            ← Canvas
-          </button>
         </div>
       ) : (
         /* ── Canvas (main view, full screen) ── */
