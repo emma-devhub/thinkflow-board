@@ -30,7 +30,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('kanban')
+  const [view, setView] = useState<View>('canvas')
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
 
   // Bootstrap on mount
@@ -96,64 +96,67 @@ export default function Home() {
   }, [canvasSessionId])
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      {/* Left rail — always visible */}
-      <ProjectRail
-        projects={projects}
-        selectedProjectId={view === 'kanban' ? selectedProjectId : null}
-        onSelectProject={(id) => { setSelectedProjectId(id); setView('kanban') }}
-        onCreateProject={handleCreateProject}
-        onDeleteProject={handleDeleteProject}
-        onRenameProject={handleRenameProject}
-      />
-
-      {/* Main area */}
+    <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {view === 'kanban' ? (
-        <KanbanBoard
-          sessions={sessions}
-          projects={projects}
-          selectedProjectId={selectedProjectId}
-          onOpenCanvas={handleOpenCanvas}
-          onCreateSession={handleCreateSession}
-          onDeleteSession={handleDeleteSession}
-          onMoveSession={handleMoveSession}
-          onToggleChecked={handleToggleChecked}
-        />
+        /* ── Project board (independent page) ── */
+        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+          <ProjectRail
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={setSelectedProjectId}
+            onCreateProject={handleCreateProject}
+            onDeleteProject={handleDeleteProject}
+            onRenameProject={handleRenameProject}
+          />
+          <KanbanBoard
+            sessions={sessions}
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onOpenCanvas={handleOpenCanvas}
+            onCreateSession={handleCreateSession}
+            onDeleteSession={handleDeleteSession}
+            onMoveSession={handleMoveSession}
+            onToggleChecked={handleToggleChecked}
+          />
+          {/* Back to canvas */}
+          <button
+            onClick={() => setView('canvas')}
+            style={{
+              position: 'absolute', top: 14, right: 16, zIndex: 10,
+              background: 'none', border: '1px solid #444', borderRadius: 7,
+              fontSize: 12, color: '#ccc', padding: '5px 11px', cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#fff'; (e.currentTarget as HTMLElement).style.borderColor = '#888' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#ccc'; (e.currentTarget as HTMLElement).style.borderColor = '#444' }}
+          >
+            ← Canvas
+          </button>
+        </div>
       ) : (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-          {/* Back bar */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 12,
-            padding: '10px 16px', borderBottom: '1px solid #e0ddd9',
-            background: '#fafafa', flexShrink: 0,
-          }}>
-            <button
-              onClick={() => setView('kanban')}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 6,
-                background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 13, color: '#666', padding: '4px 8px',
-                borderRadius: 6,
-              }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#eee' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
-            >
-              ← Back to board
-            </button>
-            {canvasSessionId && (
-              <span style={{ fontSize: 13, color: '#aaa' }}>
-                {sessions.find((s) => s.id === canvasSessionId)?.title ?? ''}
-              </span>
-            )}
-          </div>
-
-          {/* Canvas */}
+        /* ── Canvas (main view, full screen) ── */
+        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
           {canvasSessionId && (
             <ThinkCanvas
               sessionId={canvasSessionId}
               onTitleChange={handleTitleChange}
             />
           )}
+          {/* Projects button — top right overlay */}
+          <button
+            onClick={() => setView('kanban')}
+            style={{
+              position: 'absolute', top: 14, right: 16, zIndex: 10,
+              background: 'hsla(0,0%,100%,0.9)', border: '1px solid hsl(0,0%,85%)',
+              borderRadius: 8, fontSize: 12, color: '#555',
+              padding: '6px 12px', cursor: 'pointer',
+              boxShadow: '0 1px 6px hsla(0,0%,0%,0.08)',
+              backdropFilter: 'blur(4px)',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = 'hsl(0,0%,93%)' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'hsla(0,0%,100%,0.9)' }}
+          >
+            ⊞ Projects
+          </button>
         </div>
       )}
     </div>
