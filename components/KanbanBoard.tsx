@@ -318,6 +318,7 @@ function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleC
       onDragStart={onDragStart}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onClick={() => { if (showProject && project) setTagOpen((v) => !v) }}
       style={{
         background: 'white', borderRadius: 8,
         border: '1px solid #e8e5e0',
@@ -352,7 +353,7 @@ function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleC
 
         {/* Title */}
         <span
-          onClick={onOpen}
+          onClick={(e) => { e.stopPropagation(); onOpen() }}
           style={{
             flex: 1, fontSize: 13, lineHeight: 1.4,
             textDecoration: checked ? 'line-through' : 'none',
@@ -383,24 +384,11 @@ function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleC
         )}
       </div>
 
-      {/* Project tag — below title, shown on click */}
-      {showProject && project && (
-        <div style={{ marginTop: 5, paddingLeft: 23 }}>
-          <button
-            onClick={(e) => { e.stopPropagation(); setTagOpen((v) => !v) }}
-            style={{
-              background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 3,
-            }}
-          >
-            <span style={{ fontSize: 9, color: '#ccc', transition: 'transform 120ms', display: 'inline-block', transform: tagOpen ? 'rotate(90deg)' : 'rotate(0deg)' }}>›</span>
-            {tagOpen && (
-              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: project.color }}>
-                <span style={{ width: 5, height: 5, borderRadius: '50%', background: project.color, display: 'inline-block' }} />
-                {project.title}
-              </span>
-            )}
-          </button>
+      {/* Project tag — below title, shown on click (no indicator) */}
+      {showProject && project && tagOpen && (
+        <div style={{ marginTop: 5, paddingLeft: 23, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: project.color }}>
+          <span style={{ width: 5, height: 5, borderRadius: '50%', background: project.color, display: 'inline-block' }} />
+          {project.title}
         </div>
       )}
     </div>
