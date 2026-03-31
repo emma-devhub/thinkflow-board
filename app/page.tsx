@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
+import Sidebar from '@/components/Sidebar'
 import ProjectRail from '@/components/ProjectRail'
 import KanbanBoard from '@/components/KanbanBoard'
 import {
@@ -32,6 +33,7 @@ export default function Home() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [view, setView] = useState<View>('canvas')
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
+  const [sidebarOpen, setSidebarOpen] = useState(true)
 
   // Bootstrap on mount
   useEffect(() => {
@@ -134,13 +136,24 @@ export default function Home() {
         </div>
       ) : (
         /* ── Canvas (main view, full screen) ── */
-        <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+        <div style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
+          <Sidebar
+            isOpen={sidebarOpen}
+            onToggle={() => setSidebarOpen((v) => !v)}
+            sessions={sessions}
+            currentSessionId={canvasSessionId}
+            onSelectSession={(id) => { setCanvasSessionId(id); saveCurrentSessionId(id) }}
+            onNewSession={() => handleCreateSession('New session')}
+            onDeleteSession={handleDeleteSession}
+          />
+          <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
           {canvasSessionId && (
             <ThinkCanvas
               sessionId={canvasSessionId}
               onTitleChange={handleTitleChange}
             />
           )}
+          </div>
           {/* Projects button — top right overlay */}
           <button
             onClick={() => setView('kanban')}
