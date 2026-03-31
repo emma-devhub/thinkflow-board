@@ -1,4 +1,4 @@
-import type { SessionMeta } from '@/types'
+import type { SessionMeta, TaskStatus } from '@/types'
 
 const INDEX_KEY = 'thinkflow-sessions'
 const CURRENT_KEY = 'thinkflow-current'
@@ -9,14 +9,16 @@ export function loadSessionsIndex(): SessionMeta[] {
     const raw = localStorage.getItem(INDEX_KEY)
     if (!raw) return []
     const arr = JSON.parse(raw) as SessionMeta[]
-    return arr.sort((a, b) => b.createdAt - a.createdAt)
+    // backfill legacy sessions missing new fields
+    return arr
+      .map((s) => ({ ...s, status: s.status ?? ('todo' as TaskStatus), updatedAt: s.updatedAt ?? s.createdAt }))
+      .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
   } catch { return [] }
 }
 
 export function saveSessionsIndex(sessions: SessionMeta[]): void {
   try {
-    const sorted = [...sessions].sort((a, b) => b.createdAt - a.createdAt)
-    localStorage.setItem(INDEX_KEY, JSON.stringify(sorted))
+    localStorage.setItem(INDEX_KEY, JSON.stringify(sessions))
   } catch { /* ignore */ }
 }
 
@@ -28,11 +30,18 @@ export function saveCurrentSessionId(id: string): void {
   localStorage.setItem(CURRENT_KEY, id)
 }
 
-export function createSession(title = 'New session'): SessionMeta {
+export function createSession(
+  title = 'New session',
+  opts: { projectId?: string; status?: TaskStatus } = {}
+): SessionMeta {
+  const now = Date.now()
   const session: SessionMeta = {
-    id: `sess-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    id: `sess-${now}-${Math.random().toString(36).slice(2, 7)}`,
     title: title.trim().slice(0, 60) || 'New session',
-    createdAt: Date.now(),
+    createdAt: now,
+    updatedAt: now,
+    status: opts.status ?? 'todo',
+    projectId: opts.projectId,
   }
   const existing = loadSessionsIndex()
   saveSessionsIndex([session, ...existing])
@@ -49,4 +58,19 @@ export function deleteSession(id: string): void {
 export function updateSessionTitle(id: string, title: string): void {
   const existing = loadSessionsIndex()
   saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, title: title.slice(0, 60) } : s))
+}
+
+export function updateSessionStatus(id: string, status: TaskStatus): void {
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, status } : s))
+}
+
+export function updateSessionProject(id: string, projectId: string | undefined): void {
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, projectId } : s))
+}
+
+export function touchSession(id: string): void {
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, updatedAt: Date.now() } : s))
 }

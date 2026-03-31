@@ -2,7 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import dynamic from 'next/dynamic'
-import Sidebar from '@/components/Sidebar'
+import ProjectRail from '@/components/ProjectRail'
+import KanbanBoard from '@/components/KanbanBoard'
 import {
   loadSessionsIndex,
   loadCurrentSessionId,
@@ -10,87 +11,151 @@ import {
   createSession,
   deleteSession,
   updateSessionTitle,
+  updateSessionStatus,
+  updateSessionProject,
 } from '@/lib/sessions'
-import type { SessionMeta } from '@/types'
+import {
+  loadProjects,
+  createProject,
+  deleteProject,
+  updateProjectTitle,
+} from '@/lib/projects'
+import type { SessionMeta, Project, TaskStatus } from '@/types'
 
 const ThinkCanvas = dynamic(() => import('@/components/ThinkCanvas'), { ssr: false })
 
+type View = 'kanban' | 'canvas'
+
 export default function Home() {
   const [sessions, setSessions] = useState<SessionMeta[]>([])
-  const [currentSessionId, setCurrentSessionId] = useState<string>('')
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [projects, setProjects] = useState<Project[]>([])
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
+  const [view, setView] = useState<View>('kanban')
+  const [canvasSessionId, setCanvasSessionId] = useState<string>('')
 
   // Bootstrap on mount
   useEffect(() => {
-    const index = loadSessionsIndex()
+    setSessions(loadSessionsIndex())
+    setProjects(loadProjects())
     const lastId = loadCurrentSessionId()
-    if (index.length === 0) {
-      const s = createSession('New session')
-      setSessions([s])
-      setCurrentSessionId(s.id)
-    } else {
-      setSessions(index)
-      const validId = lastId && index.find((s) => s.id === lastId) ? lastId : index[0].id
-      setCurrentSessionId(validId)
-      saveCurrentSessionId(validId)
-    }
+    if (lastId) setCanvasSessionId(lastId)
   }, [])
 
-  const handleNewSession = useCallback(() => {
-    const s = createSession('New session')
+  // ── Project callbacks ──
+  const handleCreateProject = useCallback((title: string) => {
+    const p = createProject(title)
+    setProjects((prev) => [...prev, p])
+  }, [])
+
+  const handleDeleteProject = useCallback((id: string) => {
+    deleteProject(id)
+    setProjects((prev) => prev.filter((p) => p.id !== id))
+    // unassign sessions from deleted project
+    setSessions((prev) => prev.map((s) => s.projectId === id ? { ...s, projectId: undefined } : s))
+    if (selectedProjectId === id) setSelectedProjectId(null)
+  }, [selectedProjectId])
+
+  const handleRenameProject = useCallback((id: string, title: string) => {
+    updateProjectTitle(id, title)
+    setProjects((prev) => prev.map((p) => p.id === id ? { ...p, title } : p))
+  }, [])
+
+  // ── Session/subtask callbacks ──
+  const handleCreateSession = useCallback((title: string, projectId?: string, status?: TaskStatus) => {
+    const s = createSession(title, { projectId, status })
     setSessions((prev) => [s, ...prev])
-    setCurrentSessionId(s.id)
-  }, [])
-
-  const handleSelectSession = useCallback((id: string) => {
-    setCurrentSessionId(id)
-    saveCurrentSessionId(id)
+    setCanvasSessionId(s.id)
   }, [])
 
   const handleDeleteSession = useCallback((id: string) => {
     deleteSession(id)
-    setSessions((prev) => {
-      const remaining = prev.filter((s) => s.id !== id)
-      if (id === currentSessionId) {
-        if (remaining.length === 0) {
-          const s = createSession('New session')
-          setCurrentSessionId(s.id)
-          return [s]
-        }
-        setCurrentSessionId(remaining[0].id)
-        saveCurrentSessionId(remaining[0].id)
-      }
-      return remaining
-    })
-  }, [currentSessionId])
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+    if (canvasSessionId === id) setCanvasSessionId('')
+  }, [canvasSessionId])
+
+  const handleUpdateStatus = useCallback((id: string, status: TaskStatus) => {
+    updateSessionStatus(id, status)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, status } : s))
+  }, [])
+
+  const handleUpdateProject = useCallback((id: string, projectId: string | undefined) => {
+    updateSessionProject(id, projectId)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, projectId } : s))
+  }, [])
+
+  const handleOpenCanvas = useCallback((sessionId: string) => {
+    setCanvasSessionId(sessionId)
+    saveCurrentSessionId(sessionId)
+    setView('canvas')
+  }, [])
 
   const handleTitleChange = useCallback((title: string) => {
-    if (!title || !currentSessionId) return
-    updateSessionTitle(currentSessionId, title)
-    setSessions((prev) =>
-      prev.map((s) => s.id === currentSessionId ? { ...s, title } : s)
-    )
-  }, [currentSessionId])
-
-  if (!currentSessionId) return null
+    if (!title || !canvasSessionId) return
+    updateSessionTitle(canvasSessionId, title)
+    setSessions((prev) => prev.map((s) => s.id === canvasSessionId ? { ...s, title } : s))
+  }, [canvasSessionId])
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden' }}>
-      <Sidebar
-        isOpen={sidebarOpen}
-        onToggle={() => setSidebarOpen((o) => !o)}
-        sessions={sessions}
-        currentSessionId={currentSessionId}
-        onSelectSession={handleSelectSession}
-        onNewSession={handleNewSession}
-        onDeleteSession={handleDeleteSession}
+      {/* Left rail — always visible */}
+      <ProjectRail
+        projects={projects}
+        selectedProjectId={view === 'kanban' ? selectedProjectId : null}
+        onSelectProject={(id) => { setSelectedProjectId(id); setView('kanban') }}
+        onCreateProject={handleCreateProject}
+        onDeleteProject={handleDeleteProject}
+        onRenameProject={handleRenameProject}
       />
-      <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
-        <ThinkCanvas
-          sessionId={currentSessionId}
-          onTitleChange={handleTitleChange}
+
+      {/* Main area */}
+      {view === 'kanban' ? (
+        <KanbanBoard
+          sessions={sessions}
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onOpenCanvas={handleOpenCanvas}
+          onCreateSession={handleCreateSession}
+          onDeleteSession={handleDeleteSession}
+          onUpdateStatus={handleUpdateStatus}
+          onUpdateProject={handleUpdateProject}
         />
-      </div>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Back bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 12,
+            padding: '10px 16px', borderBottom: '1px solid #e0ddd9',
+            background: '#fafafa', flexShrink: 0,
+          }}>
+            <button
+              onClick={() => setView('kanban')}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 6,
+                background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 13, color: '#666', padding: '4px 8px',
+                borderRadius: 6,
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#eee' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+            >
+              ← Back to board
+            </button>
+            {canvasSessionId && (
+              <span style={{ fontSize: 13, color: '#aaa' }}>
+                {sessions.find((s) => s.id === canvasSessionId)?.title ?? ''}
+              </span>
+            )}
+          </div>
+
+          {/* Canvas */}
+          {canvasSessionId && (
+            <ThinkCanvas
+              sessionId={canvasSessionId}
+              onTitleChange={handleTitleChange}
+            />
+          )}
+        </div>
+      )}
     </div>
   )
 }

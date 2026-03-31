@@ -1,7 +1,19 @@
+export interface Project {
+  id: string
+  title: string
+  color: string
+  createdAt: number
+}
+
+export type TaskStatus = 'todo' | 'inprogress' | 'done'
+
 export interface SessionMeta {
   id: string
   title: string
   createdAt: number
+  updatedAt: number
+  projectId?: string
+  status: TaskStatus
 }
 
 export interface ConversationMessage {

@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #f0efed; display: flex; height: 100vh; overflow: hidden;
+  }
+
+  /* ── Project Rail (far left) ── */
+  .project-rail {
+    width: 200px; background: #1a1a1a; display: flex; flex-direction: column;
+    padding: 20px 0; flex-shrink: 0;
+  }
+  .rail-logo {
+    font-size: 14px; font-weight: 700; color: #fff;
+    padding: 0 16px 20px; letter-spacing: -0.02em;
+  }
+  .rail-label {
+    font-size: 10px; font-weight: 600; letter-spacing: .08em;
+    text-transform: uppercase; color: #555; padding: 0 16px 8px;
+  }
+  .project-item {
+    display: flex; align-items: center; gap: 9px;
+    padding: 9px 16px; cursor: pointer; border-radius: 0;
+    font-size: 13px; color: #aaa; transition: background 100ms;
+    border-left: 2px solid transparent;
+  }
+  .project-item:hover { background: #252525; color: #eee; }
+  .project-item.active {
+    background: #242424; color: #fff; font-weight: 500;
+    border-left: 2px solid #c8a96e;
+  }
+  .project-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+  .rail-new {
+    margin: 12px 12px 0; padding: 8px 12px; border-radius: 8px;
+    border: 1px dashed #333; background: transparent; color: #555;
+    font-size: 12px; cursor: pointer; text-align: left;
+    display: flex; align-items: center; gap: 6px;
+  }
+  .rail-new:hover { border-color: #555; color: #888; }
+
+  /* ── Main Board ── */
+  .board {
+    flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  }
+
+  /* Board header */
+  .board-header {
+    padding: 20px 24px 16px; display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid #e0ddd9; background: #f0efed; flex-shrink: 0;
+  }
+  .board-title { font-size: 18px; font-weight: 600; color: #1a1a1a; }
+  .board-actions { margin-left: auto; display: flex; gap: 8px; }
+  .btn {
+    padding: 7px 14px; border-radius: 8px; border: 1px solid #ddd;
+    background: white; font-size: 12px; color: #444; cursor: pointer;
+  }
+  .btn-primary { background: #1a1a1a; color: white; border-color: #1a1a1a; }
+
+  /* Kanban columns */
+  .kanban {
+    flex: 1; display: flex; gap: 16px; padding: 20px 24px;
+    overflow-x: auto; overflow-y: hidden;
+  }
+
+  .column {
+    width: 280px; flex-shrink: 0; display: flex; flex-direction: column; gap: 10px;
+  }
+  .col-header {
+    display: flex; align-items: center; gap: 8px;
+    padding: 0 4px 6px;
+  }
+  .col-title { font-size: 12px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: .06em; }
+  .col-count {
+    font-size: 11px; background: #e5e3df; color: #888;
+    padding: 1px 7px; border-radius: 10px;
+  }
+  .col-add { margin-left: auto; font-size: 16px; color: #bbb; cursor: pointer; line-height: 1; }
+  .col-add:hover { color: #888; }
+
+  .col-body { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+
+  /* Card */
+  .card {
+    background: white; border-radius: 10px; padding: 14px;
+    border: 1px solid #e8e5e0; cursor: pointer;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    transition: box-shadow 100ms, transform 100ms;
+  }
+  .card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.1); transform: translateY(-1px); }
+  .card-title { font-size: 13px; font-weight: 500; color: #1a1a1a; line-height: 1.4; margin-bottom: 8px; }
+  .card-meta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    font-size: 10.5px; padding: 2px 7px; border-radius: 5px; font-weight: 500;
+  }
+  .tag-blue { background: #eef2ff; color: #5571d6; }
+  .tag-amber { background: #fff8ed; color: #c47d20; }
+  .tag-green { background: #edfaf3; color: #2a9e60; }
+  .tag-gray { background: #f2f2f2; color: #888; }
+  .card-nodes { margin-left: auto; font-size: 11px; color: #bbb; }
+  .card-canvas-icon { font-size: 10px; color: #ccc; }
+
+  /* In-progress glow */
+  .col-inprogress .card { border-left: 3px solid #f0a843; }
+  .col-todo .card { border-left: 3px solid #d0ccc6; }
+  .col-done .card { border-left: 3px solid #4caf86; opacity: 0.85; }
+
+  /* Add card placeholder */
+  .add-card {
+    border: 1.5px dashed #ddd; border-radius: 10px; padding: 12px 14px;
+    color: #bbb; font-size: 12px; cursor: pointer; display: flex;
+    align-items: center; gap: 6px; background: transparent;
+  }
+  .add-card:hover { border-color: #bbb; color: #999; background: white; }
+</style>
+</head>
+<body>
+
+<!-- Project Rail -->
+<div class="project-rail">
+  <div class="rail-logo">ThinkFlow</div>
+  <div class="rail-label">Projects</div>
+
+  <div class="project-item active">
+    <div class="project-dot" style="background:#c8a96e"></div>
+    Macro Research
+  </div>
+  <div class="project-item">
+    <div class="project-dot" style="background:#6ea8c8"></div>
+    Tech Sector
+  </div>
+  <div class="project-item">
+    <div class="project-dot" style="background:#8ec86e"></div>
+    Climate & Energy
+  </div>
+  <div class="project-item">
+    <div class="project-dot" style="background:#c86e8e"></div>
+    Job Search
+  </div>
+
+  <button class="rail-new">+ New project</button>
+</div>
+
+<!-- Board -->
+<div class="board">
+  <div class="board-header">
+    <div class="board-title">Macro Research</div>
+    <div class="board-actions">
+      <button class="btn">+ New subtask</button>
+      <button class="btn btn-primary">Open canvas</button>
+    </div>
+  </div>
+
+  <div class="kanban">
+
+    <!-- TO DO -->
+    <div class="column col-todo">
+      <div class="col-header">
+        <span class="col-title">To Do</span>
+        <span class="col-count">3</span>
+        <span class="col-add">+</span>
+      </div>
+      <div class="col-body">
+        <div class="card">
+          <div class="card-title">Analyze impact of new tariffs on emerging market currencies</div>
+          <div class="card-meta">
+            <span class="tag tag-blue">currency</span>
+            <span class="tag tag-gray">tariffs</span>
+            <span class="card-nodes">0 nodes</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Compare 2025 vs 2018 trade war playbook</div>
+          <div class="card-meta">
+            <span class="tag tag-blue">trade</span>
+            <span class="card-nodes">0 nodes</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Treasury yield curve inversion: recession signal?</div>
+          <div class="card-meta">
+            <span class="tag tag-amber">rates</span>
+            <span class="card-nodes">0 nodes</span>
+          </div>
+        </div>
+        <button class="add-card">+ Add subtask</button>
+      </div>
+    </div>
+
+    <!-- IN PROGRESS -->
+    <div class="column col-inprogress">
+      <div class="col-header">
+        <span class="col-title">In Progress</span>
+        <span class="col-count">2</span>
+        <span class="col-add">+</span>
+      </div>
+      <div class="col-body">
+        <div class="card">
+          <div class="card-title">US-China trade war 2025: scenarios & impact</div>
+          <div class="card-meta">
+            <span class="tag tag-blue">trade</span>
+            <span class="tag tag-amber">geopolitics</span>
+            <span class="card-nodes">12 nodes ↗</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Fed rate decision: inflation vs growth tradeoff</div>
+          <div class="card-meta">
+            <span class="tag tag-amber">rates</span>
+            <span class="card-nodes">8 nodes ↗</span>
+          </div>
+        </div>
+        <button class="add-card">+ Add subtask</button>
+      </div>
+    </div>
+
+    <!-- DONE -->
+    <div class="column col-done">
+      <div class="col-header">
+        <span class="col-title">Done</span>
+        <span class="col-count">2</span>
+        <span class="col-add">+</span>
+      </div>
+      <div class="col-body">
+        <div class="card">
+          <div class="card-title">Emerging markets outlook: top 5 risks 2025</div>
+          <div class="card-meta">
+            <span class="tag tag-green">complete</span>
+            <span class="card-nodes">15 nodes ↗</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title">Dollar strength impact on commodity prices</div>
+          <div class="card-meta">
+            <span class="tag tag-green">complete</span>
+            <span class="card-nodes">9 nodes ↗</span>
+          </div>
+        </div>
+        <button class="add-card">+ Add subtask</button>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</body>
+</html>
