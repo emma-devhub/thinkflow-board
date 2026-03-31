@@ -11,8 +11,8 @@ import {
   createSession,
   deleteSession,
   updateSessionTitle,
-  updateSessionStatus,
-  updateSessionProject,
+  updateSessionColumn,
+  updateSessionChecked,
 } from '@/lib/sessions'
 import {
   loadProjects,
@@ -20,7 +20,7 @@ import {
   deleteProject,
   updateProjectTitle,
 } from '@/lib/projects'
-import type { SessionMeta, Project, TaskStatus } from '@/types'
+import type { SessionMeta, Project } from '@/types'
 
 const ThinkCanvas = dynamic(() => import('@/components/ThinkCanvas'), { ssr: false })
 
@@ -61,8 +61,8 @@ export default function Home() {
   }, [])
 
   // ── Session/subtask callbacks ──
-  const handleCreateSession = useCallback((title: string, projectId?: string, status?: TaskStatus) => {
-    const s = createSession(title, { projectId, status })
+  const handleCreateSession = useCallback((title: string, projectId?: string, columnId?: string) => {
+    const s = createSession(title, { projectId, columnId })
     setSessions((prev) => [s, ...prev])
     setCanvasSessionId(s.id)
   }, [])
@@ -73,14 +73,14 @@ export default function Home() {
     if (canvasSessionId === id) setCanvasSessionId('')
   }, [canvasSessionId])
 
-  const handleUpdateStatus = useCallback((id: string, status: TaskStatus) => {
-    updateSessionStatus(id, status)
-    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, status } : s))
+  const handleMoveSession = useCallback((id: string, columnId: string) => {
+    updateSessionColumn(id, columnId)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, columnId } : s))
   }, [])
 
-  const handleUpdateProject = useCallback((id: string, projectId: string | undefined) => {
-    updateSessionProject(id, projectId)
-    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, projectId } : s))
+  const handleToggleChecked = useCallback((id: string, checked: boolean) => {
+    updateSessionChecked(id, checked)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, checked } : s))
   }, [])
 
   const handleOpenCanvas = useCallback((sessionId: string) => {
@@ -116,8 +116,8 @@ export default function Home() {
           onOpenCanvas={handleOpenCanvas}
           onCreateSession={handleCreateSession}
           onDeleteSession={handleDeleteSession}
-          onUpdateStatus={handleUpdateStatus}
-          onUpdateProject={handleUpdateProject}
+          onMoveSession={handleMoveSession}
+          onToggleChecked={handleToggleChecked}
         />
       ) : (
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
