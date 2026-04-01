@@ -114,65 +114,43 @@ export default function Home() {
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {view === 'kanban' ? (
         /* ── Project board (independent page) ── */
-        <div style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'column' }}>
-          {/* View toggle tab bar */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 4,
-            padding: '10px 24px 0', background: '#f0efed', flexShrink: 0,
-          }}>
-            {(['domain', 'week'] as const).map((v) => (
-              <button
-                key={v}
-                onClick={() => setBoardView(v)}
-                style={{
-                  padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
-                  border: '1px solid',
-                  borderColor: boardView === v ? '#5578cc' : '#ddd',
-                  background: boardView === v ? '#5578cc' : 'white',
-                  color: boardView === v ? 'white' : '#666',
-                  fontWeight: boardView === v ? 600 : 400,
-                  transition: 'all 120ms',
-                }}
-              >
-                {v === 'domain' ? '按领域' : '按时间'}
-              </button>
-            ))}
-          </div>
-
-          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-            <ProjectRail
+        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+          <ProjectRail
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={setSelectedProjectId}
+            onCreateProject={handleCreateProject}
+            onDeleteProject={handleDeleteProject}
+            onRenameProject={handleRenameProject}
+          />
+          {boardView === 'domain' ? (
+            <KanbanBoard
+              sessions={sessions}
               projects={projects}
               selectedProjectId={selectedProjectId}
-              onSelectProject={setSelectedProjectId}
-              onCreateProject={handleCreateProject}
-              onDeleteProject={handleDeleteProject}
-              onRenameProject={handleRenameProject}
+              onOpenCanvas={handleOpenCanvas}
+              onCreateSession={handleCreateSession}
+              onDeleteSession={handleDeleteSession}
+              onMoveSession={handleMoveSession}
+              onToggleChecked={handleToggleChecked}
+              onRenameSession={handleRenameSession}
+              boardView={boardView}
+              onBoardViewChange={setBoardView}
             />
-            {boardView === 'domain' ? (
-              <KanbanBoard
-                sessions={sessions}
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                onOpenCanvas={handleOpenCanvas}
-                onCreateSession={handleCreateSession}
-                onDeleteSession={handleDeleteSession}
-                onMoveSession={handleMoveSession}
-                onToggleChecked={handleToggleChecked}
-                onRenameSession={handleRenameSession}
-              />
-            ) : (
-              <WeekBoard
-                sessions={sessions}
-                projects={projects}
-                selectedProjectId={selectedProjectId}
-                onSchedule={handleScheduleSession}
-                onDelete={handleDeleteSession}
-                onToggleChecked={handleToggleChecked}
-                onRename={handleRenameSession}
-                onOpenCanvas={handleOpenCanvas}
-              />
-            )}
-          </div>
+          ) : (
+            <WeekBoard
+              sessions={sessions}
+              projects={projects}
+              selectedProjectId={selectedProjectId}
+              onSchedule={handleScheduleSession}
+              onDelete={handleDeleteSession}
+              onToggleChecked={handleToggleChecked}
+              onRename={handleRenameSession}
+              onOpenCanvas={handleOpenCanvas}
+              boardView={boardView}
+              onBoardViewChange={setBoardView}
+            />
+          )}
         </div>
       ) : (
         /* ── Canvas (main view, full screen) ── */

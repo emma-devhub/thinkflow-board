@@ -12,6 +12,8 @@ interface Props {
   onToggleChecked: (id: string, checked: boolean) => void
   onRename: (id: string, title: string) => void
   onOpenCanvas: (id: string) => void
+  boardView: 'domain' | 'week'
+  onBoardViewChange: (v: 'domain' | 'week') => void
 }
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
@@ -39,6 +41,7 @@ function formatDayHeader(date: string): string {
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
   onSchedule, onDelete, onToggleChecked, onRename, onOpenCanvas,
+  boardView, onBoardViewChange,
 }: Props) {
   const weekDays = getWeekDays()
   const dragId = useRef<string | null>(null)
@@ -49,6 +52,11 @@ export default function WeekBoard({
   const visibleSessions = selectedProjectId === null
     ? sessions
     : sessions.filter((s) => s.projectId === selectedProjectId)
+
+  const boardTitle = selectedProjectId ? (projectMap[selectedProjectId]?.title ?? 'Project') : 'All Projects'
+  const boardSub = selectedProjectId === null
+    ? `${visibleSessions.length} subtask${visibleSessions.length !== 1 ? 's' : ''} across ${projects.length} project${projects.length !== 1 ? 's' : ''}`
+    : `${visibleSessions.length} subtask${visibleSessions.length !== 1 ? 's' : ''}`
 
   const weekDateSet = new Set(weekDays.map((d) => d.date))
 
@@ -73,6 +81,41 @@ export default function WeekBoard({
 
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed' }}>
+      {/* Header — matches KanbanBoard header */}
+      <div style={{
+        padding: '18px 24px 14px', display: 'flex', alignItems: 'center', gap: 8,
+        borderBottom: '1px solid #e0ddd9', background: '#f0efed', flexShrink: 0,
+      }}>
+        <div>
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{boardTitle}</div>
+          <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{boardSub}</div>
+        </div>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {(['domain', 'week'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => onBoardViewChange(v)}
+              style={{
+                padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                border: '1px solid',
+                borderColor: boardView === v ? '#1a1a1a' : '#ddd',
+                background: boardView === v ? '#1a1a1a' : 'white',
+                color: boardView === v ? 'white' : '#444',
+                transition: 'all 120ms',
+              }}
+              onMouseEnter={(e) => {
+                if (boardView !== v) (e.currentTarget as HTMLElement).style.background = '#f5f5f5'
+              }}
+              onMouseLeave={(e) => {
+                if (boardView !== v) (e.currentTarget as HTMLElement).style.background = 'white'
+              }}
+            >
+              {v === 'domain' ? 'By Focus' : 'By Time'}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Columns */}
       <div style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px', overflowX: 'auto', overflowY: 'hidden' }}>
         {columns.map((col) => {

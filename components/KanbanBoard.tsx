@@ -15,6 +15,8 @@ interface Props {
   onMoveSession: (id: string, columnId: string) => void
   onToggleChecked: (id: string, checked: boolean) => void
   onRenameSession: (id: string, title: string) => void
+  boardView: 'domain' | 'week'
+  onBoardViewChange: (v: 'domain' | 'week') => void
 }
 
 // ── Direction (column) persistence ──────────────────────────────────────────
@@ -47,6 +49,7 @@ function sessionDirId(s: SessionMeta): string {
 export default function KanbanBoard({
   sessions, projects, selectedProjectId,
   onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
+  boardView, onBoardViewChange,
 }: Props) {
   const [dirs, setDirs] = useState<Direction[]>(loadDirs)
   const [addingDirId, setAddingDirId] = useState<string | null>(null)
@@ -111,25 +114,50 @@ export default function KanbanBoard({
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed' }}>
       {/* Header */}
       <div style={{
-        padding: '18px 24px 14px', display: 'flex', alignItems: 'center', gap: 12,
+        padding: '18px 24px 14px', display: 'flex', alignItems: 'center', gap: 8,
         borderBottom: '1px solid #e0ddd9', background: '#f0efed', flexShrink: 0,
       }}>
         <div>
           <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{boardTitle}</div>
           <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{boardSub}</div>
         </div>
-        <button
-          onClick={() => setAddingNewDir(true)}
-          style={{
-            marginLeft: 'auto', padding: '7px 14px', borderRadius: 8,
-            border: '1px solid #ddd', background: 'white', fontSize: 12,
-            color: '#444', cursor: 'pointer',
-          }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}
-        >
-          + New Direction
-        </button>
+        {/* View toggle + New Focus — all right-aligned */}
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          {(['domain', 'week'] as const).map((v) => (
+            <button
+              key={v}
+              onClick={() => onBoardViewChange(v)}
+              style={{
+                padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+                border: '1px solid',
+                borderColor: boardView === v ? '#1a1a1a' : '#ddd',
+                background: boardView === v ? '#1a1a1a' : 'white',
+                color: boardView === v ? 'white' : '#444',
+                transition: 'all 120ms',
+              }}
+              onMouseEnter={(e) => {
+                if (boardView !== v) (e.currentTarget as HTMLElement).style.background = '#f5f5f5'
+              }}
+              onMouseLeave={(e) => {
+                if (boardView !== v) (e.currentTarget as HTMLElement).style.background = 'white'
+              }}
+            >
+              {v === 'domain' ? 'By Focus' : 'By Time'}
+            </button>
+          ))}
+          <button
+            onClick={() => setAddingNewDir(true)}
+            style={{
+              padding: '7px 14px', borderRadius: 8,
+              border: '1px solid #ddd', background: 'white', fontSize: 12,
+              color: '#444', cursor: 'pointer',
+            }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}
+          >
+            + New Focus
+          </button>
+        </div>
       </div>
 
       {/* Columns */}
