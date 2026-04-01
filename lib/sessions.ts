@@ -86,6 +86,12 @@ export function updateSessionSchedule(id: string, dueDate: string | undefined, e
   saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
 }
 
+export function updateSessionsWeekOrder(updates: { id: string; weekOrder: number }[]): void {
+  const map = Object.fromEntries(updates.map((u) => [u.id, u.weekOrder]))
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => map[s.id] !== undefined ? { ...s, weekOrder: map[s.id] } : s))
+}
+
 export function touchSession(id: string): void {
   const existing = loadSessionsIndex()
   saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, updatedAt: Date.now() } : s))

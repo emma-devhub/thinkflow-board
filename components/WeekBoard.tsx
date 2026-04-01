@@ -8,6 +8,7 @@ interface Props {
   projects: Project[]
   selectedProjectId: string | null
   onSchedule: (id: string, dueDate: string | undefined, estimatedMins: number | undefined) => void
+  onReorderWeek: (updates: { id: string; weekOrder: number }[]) => void
   onCreateSession: (title: string, projectId?: string, dueDate?: string) => void
   onDelete: (id: string) => void
   onToggleChecked: (id: string, checked: boolean) => void
@@ -50,7 +51,7 @@ function formatDayHeader(date: string): string {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
-  onSchedule, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
+  onSchedule, onReorderWeek, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
   boardView, onBoardViewChange,
 }: Props) {
   const weekDays = getWeekDays()
@@ -75,6 +76,20 @@ export default function WeekBoard({
   // Card belongs to "unscheduled" if no dueDate or dueDate not in current week
   const getColKey = (s: SessionMeta): string =>
     s.dueDate && weekDateSet.has(s.dueDate) ? s.dueDate : 'unscheduled'
+
+  const getOrder = (s: SessionMeta) => s.weekOrder ?? s.createdAt
+
+  const handleReorder = (id: string, direction: 'up' | 'down', colSorted: SessionMeta[]) => {
+    const idx = colSorted.findIndex((s) => s.id === id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= colSorted.length) return
+    const a = colSorted[idx]
+    const b = colSorted[swapIdx]
+    onReorderWeek([
+      { id: a.id, weekOrder: getOrder(b) },
+      { id: b.id, weekOrder: getOrder(a) },
+    ])
+  }
 
   const handleAddCommit = (colKey: string) => {
     const t = addTitle.trim()
@@ -141,7 +156,9 @@ export default function WeekBoard({
       {/* Columns */}
       <div style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px', overflowX: 'auto', overflowY: 'hidden' }}>
         {columns.map((col) => {
-          const colSessions = visibleSessions.filter((s) => getColKey(s) === col.key)
+          const colSessions = visibleSessions
+            .filter((s) => getColKey(s) === col.key)
+            .sort((a, b) => getOrder(a) - getOrder(b))
           const isDragOver = dragOverCol === col.key
           const isUnscheduled = col.key === 'unscheduled'
 
@@ -189,7 +206,7 @@ export default function WeekBoard({
 
               {/* Cards */}
               <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {colSessions.map((s) => {
+                {colSessions.map((s, idx) => {
                   const proj = s.projectId ? projectMap[s.projectId] : null
                   return (
                     <WeekCard
@@ -202,6 +219,8 @@ export default function WeekBoard({
                       onRename={(title) => onRename(s.id, title)}
                       onUpdateTime={(mins) => onSchedule(s.id, s.dueDate, mins)}
                       onDragStart={() => { dragId.current = s.id }}
+                      onMoveUp={idx > 0 ? () => handleReorder(s.id, 'up', colSessions) : null}
+                      onMoveDown={idx < colSessions.length - 1 ? () => handleReorder(s.id, 'down', colSessions) : null}
                     />
                   )
                 })}
@@ -263,7 +282,7 @@ export default function WeekBoard({
 }
 
 // ── WeekCard ──────────────────────────────────────────────────────────────────
-function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onDragStart }: {
+function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onDragStart, onMoveUp, onMoveDown }: {
   session: SessionMeta
   project: Project | null | undefined
   onOpenCanvas: () => void
@@ -272,6 +291,8 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
   onRename: (title: string) => void
   onUpdateTime: (mins: number | undefined) => void
   onDragStart: () => void
+  onMoveUp: (() => void) | null
+  onMoveDown: (() => void) | null
 }) {
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
@@ -369,6 +390,24 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
         {/* Hover actions */}
         {hovered && !editing && !editingTime && (
           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
+            {onMoveUp && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onMoveUp() }}
+                title="Move up"
+                style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 11, cursor: 'pointer', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#444'; (e.currentTarget as HTMLElement).style.background = '#f0f0f0' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#aaa'; (e.currentTarget as HTMLElement).style.background = 'none' }}
+              >↑</button>
+            )}
+            {onMoveDown && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onMoveDown() }}
+                title="Move down"
+                style={{ background: 'none', border: 'none', color: '#aaa', fontSize: 11, cursor: 'pointer', padding: '2px 4px', borderRadius: 4, lineHeight: 1 }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#444'; (e.currentTarget as HTMLElement).style.background = '#f0f0f0' }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#aaa'; (e.currentTarget as HTMLElement).style.background = 'none' }}
+              >↓</button>
+            )}
             <button
               onClick={(e) => { e.stopPropagation(); onOpenCanvas() }}
               title="Open canvas"

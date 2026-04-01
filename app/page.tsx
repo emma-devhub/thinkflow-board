@@ -16,6 +16,7 @@ import {
   updateSessionColumn,
   updateSessionChecked,
   updateSessionSchedule,
+  updateSessionsWeekOrder,
 } from '@/lib/sessions'
 import {
   loadProjects,
@@ -98,6 +99,14 @@ export default function Home() {
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
   }, [])
 
+  const handleReorderWeek = useCallback((updates: { id: string; weekOrder: number }[]) => {
+    updateSessionsWeekOrder(updates)
+    setSessions((prev) => prev.map((s) => {
+      const u = updates.find((x) => x.id === s.id)
+      return u ? { ...s, weekOrder: u.weekOrder } : s
+    }))
+  }, [])
+
   const handleCreateWeekSession = useCallback((title: string, projectId?: string, dueDate?: string) => {
     const s = createSession(title, { projectId })
     if (dueDate) updateSessionSchedule(s.id, dueDate, undefined)
@@ -150,6 +159,7 @@ export default function Home() {
               projects={projects}
               selectedProjectId={selectedProjectId}
               onSchedule={handleScheduleSession}
+              onReorderWeek={handleReorderWeek}
               onCreateSession={handleCreateWeekSession}
               onDelete={handleDeleteSession}
               onToggleChecked={handleToggleChecked}

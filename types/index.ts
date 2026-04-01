@@ -18,6 +18,7 @@ export interface SessionMeta {
   checked?: boolean
   dueDate?: string      // 'YYYY-MM-DD'
   estimatedMins?: number
+  weekOrder?: number    // sort key within a day column (lower = higher up)
 }
 
 export interface ConversationMessage {
