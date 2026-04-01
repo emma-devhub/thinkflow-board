@@ -8,6 +8,7 @@ interface Props {
   projects: Project[]
   selectedProjectId: string | null
   onSchedule: (id: string, dueDate: string | undefined, estimatedMins: number | undefined) => void
+  onCreateSession: (title: string, projectId?: string, dueDate?: string) => void
   onDelete: (id: string) => void
   onToggleChecked: (id: string, checked: boolean) => void
   onRename: (id: string, title: string) => void
@@ -49,12 +50,14 @@ function formatDayHeader(date: string): string {
 // ── Main component ────────────────────────────────────────────────────────────
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
-  onSchedule, onDelete, onToggleChecked, onRename, onOpenCanvas,
+  onSchedule, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
   boardView, onBoardViewChange,
 }: Props) {
   const weekDays = getWeekDays()
   const dragId = useRef<string | null>(null)
-  const [dragOverCol, setDragOverCol] = useState<string | null>(null) // 'unscheduled' or date string
+  const [dragOverCol, setDragOverCol] = useState<string | null>(null)
+  const [addingColKey, setAddingColKey] = useState<string | null>(null)
+  const [addTitle, setAddTitle] = useState('')
 
   const projectMap = Object.fromEntries(projects.map((p) => [p.id, p]))
 
@@ -72,6 +75,16 @@ export default function WeekBoard({
   // Card belongs to "unscheduled" if no dueDate or dueDate not in current week
   const getColKey = (s: SessionMeta): string =>
     s.dueDate && weekDateSet.has(s.dueDate) ? s.dueDate : 'unscheduled'
+
+  const handleAddCommit = (colKey: string) => {
+    const t = addTitle.trim()
+    if (t) {
+      const dueDate = colKey === 'unscheduled' ? undefined : colKey
+      onCreateSession(t, selectedProjectId ?? undefined, dueDate)
+    }
+    setAddTitle('')
+    setAddingColKey(null)
+  }
 
   const handleDrop = (colKey: string) => {
     if (!dragId.current) return
@@ -194,7 +207,7 @@ export default function WeekBoard({
                 })}
 
                 {/* Drop hint when dragging over and column is empty */}
-                {isDragOver && colSessions.length === 0 && (
+                {isDragOver && colSessions.length === 0 && addingColKey !== col.key && (
                   <div style={{
                     border: '1.5px dashed #ccc', borderRadius: 8, height: 60,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
@@ -203,6 +216,43 @@ export default function WeekBoard({
                     放在这里
                   </div>
                 )}
+
+                {/* Inline add input */}
+                {addingColKey === col.key && (
+                  <div style={{
+                    background: 'white', borderRadius: 8, padding: '8px 10px',
+                    border: '1px solid #e8e5e0', borderLeft: `3px solid ${col.isToday ? '#5578cc' : '#ddd'}`,
+                  }}>
+                    <input
+                      autoFocus
+                      value={addTitle}
+                      onChange={(e) => setAddTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddCommit(col.key)
+                        if (e.key === 'Escape') { setAddingColKey(null); setAddTitle('') }
+                      }}
+                      onBlur={() => handleAddCommit(col.key)}
+                      placeholder="Subtask title…"
+                      style={{ width: '100%', border: 'none', outline: 'none', fontSize: 13, color: '#1a1a1a', background: 'transparent' }}
+                    />
+                  </div>
+                )}
+
+                {/* + Add subtask button */}
+                <button
+                  onClick={() => { setAddingColKey(col.key); setAddTitle('') }}
+                  style={{
+                    border: '1.5px dashed #ddd', borderRadius: 8, padding: '8px 12px',
+                    color: '#bbb', fontSize: 12, cursor: 'pointer',
+                    display: addingColKey === col.key ? 'none' : 'flex',
+                    alignItems: 'center', gap: 6, background: 'transparent', width: '100%',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#bbb'; (e.currentTarget as HTMLElement).style.color = '#999'; (e.currentTarget as HTMLElement).style.background = 'white' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#ddd'; (e.currentTarget as HTMLElement).style.color = '#bbb'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  + Add subtask
+                </button>
               </div>
             </div>
           )

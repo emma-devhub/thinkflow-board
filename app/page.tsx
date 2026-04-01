@@ -98,6 +98,13 @@ export default function Home() {
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
   }, [])
 
+  const handleCreateWeekSession = useCallback((title: string, projectId?: string, dueDate?: string) => {
+    const s = createSession(title, { projectId })
+    if (dueDate) updateSessionSchedule(s.id, dueDate, undefined)
+    setSessions((prev) => [{ ...s, dueDate }, ...prev])
+    setCanvasSessionId(s.id)
+  }, [])
+
   const handleOpenCanvas = useCallback((sessionId: string) => {
     setCanvasSessionId(sessionId)
     saveCurrentSessionId(sessionId)
@@ -143,6 +150,7 @@ export default function Home() {
               projects={projects}
               selectedProjectId={selectedProjectId}
               onSchedule={handleScheduleSession}
+              onCreateSession={handleCreateWeekSession}
               onDelete={handleDeleteSession}
               onToggleChecked={handleToggleChecked}
               onRename={handleRenameSession}
