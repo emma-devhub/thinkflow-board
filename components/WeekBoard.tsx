@@ -17,16 +17,25 @@ interface Props {
 }
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
+
+// Use local date to avoid UTC offset shifting the date across timezone boundaries
+function localDateStr(d: Date): string {
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${y}-${m}-${day}`
+}
+
 function getWeekDays(): { label: string; date: string; isToday: boolean }[] {
   const today = new Date()
-  const todayStr = today.toISOString().slice(0, 10)
+  const todayStr = localDateStr(today)
   const mon = new Date(today)
   mon.setDate(today.getDate() - ((today.getDay() + 6) % 7))
   const labels = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(mon)
     d.setDate(mon.getDate() + i)
-    const date = d.toISOString().slice(0, 10)
+    const date = localDateStr(d)
     return { label: labels[i], date, isToday: date === todayStr }
   })
 }
