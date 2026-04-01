@@ -81,6 +81,11 @@ export function updateSessionChecked(id: string, checked: boolean): void {
   saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, checked } : s))
 }
 
+export function updateSessionSchedule(id: string, dueDate: string | undefined, estimatedMins: number | undefined): void {
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
+}
+
 export function touchSession(id: string): void {
   const existing = loadSessionsIndex()
   saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, updatedAt: Date.now() } : s))

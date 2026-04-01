@@ -16,6 +16,8 @@ export interface SessionMeta {
   status: TaskStatus
   columnId?: string
   checked?: boolean
+  dueDate?: string      // 'YYYY-MM-DD'
+  estimatedMins?: number
 }
 
 export interface ConversationMessage {

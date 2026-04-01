@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import Sidebar from '@/components/Sidebar'
 import ProjectRail from '@/components/ProjectRail'
 import KanbanBoard from '@/components/KanbanBoard'
+import WeekBoard from '@/components/WeekBoard'
 import {
   loadSessionsIndex,
   loadCurrentSessionId,
@@ -14,6 +15,7 @@ import {
   updateSessionTitle,
   updateSessionColumn,
   updateSessionChecked,
+  updateSessionSchedule,
 } from '@/lib/sessions'
 import {
   loadProjects,
@@ -32,6 +34,7 @@ export default function Home() {
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   const [view, setView] = useState<View>('canvas')
+  const [boardView, setBoardView] = useState<'domain' | 'week'>('domain')
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -90,6 +93,11 @@ export default function Home() {
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s))
   }, [])
 
+  const handleScheduleSession = useCallback((id: string, dueDate: string | undefined, estimatedMins: number | undefined) => {
+    updateSessionSchedule(id, dueDate, estimatedMins)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
+  }, [])
+
   const handleOpenCanvas = useCallback((sessionId: string) => {
     setCanvasSessionId(sessionId)
     saveCurrentSessionId(sessionId)
@@ -106,26 +114,65 @@ export default function Home() {
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {view === 'kanban' ? (
         /* ── Project board (independent page) ── */
-        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-          <ProjectRail
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onSelectProject={setSelectedProjectId}
-            onCreateProject={handleCreateProject}
-            onDeleteProject={handleDeleteProject}
-            onRenameProject={handleRenameProject}
-          />
-          <KanbanBoard
-            sessions={sessions}
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onOpenCanvas={handleOpenCanvas}
-            onCreateSession={handleCreateSession}
-            onDeleteSession={handleDeleteSession}
-            onMoveSession={handleMoveSession}
-            onToggleChecked={handleToggleChecked}
-            onRenameSession={handleRenameSession}
-          />
+        <div style={{ display: 'flex', width: '100%', height: '100%', flexDirection: 'column' }}>
+          {/* View toggle tab bar */}
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 4,
+            padding: '10px 24px 0', background: '#f0efed', flexShrink: 0,
+          }}>
+            {(['domain', 'week'] as const).map((v) => (
+              <button
+                key={v}
+                onClick={() => setBoardView(v)}
+                style={{
+                  padding: '5px 14px', borderRadius: 20, fontSize: 12, cursor: 'pointer',
+                  border: '1px solid',
+                  borderColor: boardView === v ? '#5578cc' : '#ddd',
+                  background: boardView === v ? '#5578cc' : 'white',
+                  color: boardView === v ? 'white' : '#666',
+                  fontWeight: boardView === v ? 600 : 400,
+                  transition: 'all 120ms',
+                }}
+              >
+                {v === 'domain' ? '按领域' : '按时间'}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+            <ProjectRail
+              projects={projects}
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              onCreateProject={handleCreateProject}
+              onDeleteProject={handleDeleteProject}
+              onRenameProject={handleRenameProject}
+            />
+            {boardView === 'domain' ? (
+              <KanbanBoard
+                sessions={sessions}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onOpenCanvas={handleOpenCanvas}
+                onCreateSession={handleCreateSession}
+                onDeleteSession={handleDeleteSession}
+                onMoveSession={handleMoveSession}
+                onToggleChecked={handleToggleChecked}
+                onRenameSession={handleRenameSession}
+              />
+            ) : (
+              <WeekBoard
+                sessions={sessions}
+                projects={projects}
+                selectedProjectId={selectedProjectId}
+                onSchedule={handleScheduleSession}
+                onDelete={handleDeleteSession}
+                onToggleChecked={handleToggleChecked}
+                onRename={handleRenameSession}
+                onOpenCanvas={handleOpenCanvas}
+              />
+            )}
+          </div>
         </div>
       ) : (
         /* ── Canvas (main view, full screen) ── */
