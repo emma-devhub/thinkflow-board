@@ -14,6 +14,7 @@ interface Props {
   onDeleteSession: (id: string) => void
   onMoveSession: (id: string, columnId: string) => void
   onToggleChecked: (id: string, checked: boolean) => void
+  onRenameSession: (id: string, title: string) => void
 }
 
 // ── Direction (column) persistence ──────────────────────────────────────────
@@ -45,7 +46,7 @@ function sessionDirId(s: SessionMeta): string {
 // ── Component ────────────────────────────────────────────────────────────────
 export default function KanbanBoard({
   sessions, projects, selectedProjectId,
-  onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked,
+  onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
 }: Props) {
   const [dirs, setDirs] = useState<Direction[]>(loadDirs)
   const [addingDirId, setAddingDirId] = useState<string | null>(null)
@@ -175,6 +176,7 @@ export default function KanbanBoard({
                       onOpen={() => onOpenCanvas(s.id)}
                       onDelete={() => onDeleteSession(s.id)}
                       onToggleChecked={(v) => onToggleChecked(s.id, v)}
+                      onRename={(title) => onRenameSession(s.id, title)}
                       onDragStart={() => { dragId.current = s.id }}
                     />
                   )
@@ -298,34 +300,44 @@ function ColHeader({ dir, count, editing, draft, onDraftChange, onStartEdit, onC
 }
 
 // ── Card ──────────────────────────────────────────────────────────────────────
-function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleChecked, onDragStart }: {
+function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleChecked, onRename, onDragStart }: {
   session: SessionMeta
   project: Project | null | undefined
   showProject: boolean
   onOpen: () => void
   onDelete: () => void
   onToggleChecked: (v: boolean) => void
+  onRename: (title: string) => void
   onDragStart: () => void
 }) {
   const [hovered, setHovered] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(session.title)
   const accentColor = project?.color ?? '#ddd'
   const checked = !!session.checked
 
+  const commitEdit = () => {
+    const t = draft.trim()
+    if (t && t !== session.title) onRename(t)
+    else setDraft(session.title)
+    setEditing(false)
+  }
+
   return (
     <div
-      draggable
+      draggable={!editing}
       onDragStart={onDragStart}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
-      onClick={() => { if (showProject && project) setTagOpen((v) => !v) }}
+      onClick={() => { if (showProject && project && !editing) setTagOpen((v) => !v) }}
       style={{
         background: 'white', borderRadius: 8,
         border: '1px solid #e8e5e0',
         borderLeft: `4px solid ${accentColor}`,
         boxShadow: hovered ? '0 3px 10px rgba(0,0,0,0.09)' : '0 1px 2px rgba(0,0,0,0.04)',
-        cursor: 'grab',
-        transform: hovered ? 'translateY(-1px)' : 'none',
+        cursor: editing ? 'default' : 'grab',
+        transform: hovered && !editing ? 'translateY(-1px)' : 'none',
         transition: 'box-shadow 120ms, transform 120ms',
         opacity: checked ? 0.65 : 1,
         padding: '8px 10px',
@@ -351,25 +363,45 @@ function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleC
           )}
         </div>
 
-        {/* Title */}
-        <span
-          onClick={(e) => { e.stopPropagation(); onOpen() }}
-          style={{
-            flex: 1, fontSize: 13, lineHeight: 1.4,
-            textDecoration: checked ? 'line-through' : 'none',
-            color: checked ? '#aaa' : '#1a1a1a',
-            overflow: 'hidden', display: '-webkit-box',
-            WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', cursor: 'pointer',
-          } as React.CSSProperties}
-        >
-          {session.title}
-        </span>
+        {/* Title — click to edit inline */}
+        {editing ? (
+          <input
+            autoFocus
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitEdit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
+              if (e.key === 'Escape') { setDraft(session.title); setEditing(false) }
+            }}
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              flex: 1, fontSize: 13, lineHeight: 1.4, border: 'none', outline: 'none',
+              borderBottom: `1px solid ${accentColor}`, background: 'transparent',
+              color: '#1a1a1a', padding: '0 0 1px', width: '100%',
+            }}
+          />
+        ) : (
+          <span
+            onClick={(e) => { e.stopPropagation(); setDraft(session.title); setEditing(true) }}
+            style={{
+              flex: 1, fontSize: 13, lineHeight: 1.4,
+              textDecoration: checked ? 'line-through' : 'none',
+              color: checked ? '#aaa' : '#1a1a1a',
+              overflow: 'hidden', display: '-webkit-box',
+              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', cursor: 'text',
+            } as React.CSSProperties}
+          >
+            {session.title}
+          </span>
+        )}
 
         {/* Hover actions */}
-        {hovered && (
+        {hovered && !editing && (
           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
             <button
               onClick={(e) => { e.stopPropagation(); onOpen() }}
+              title="Open canvas"
               style={{ background: 'none', border: 'none', color: '#5578cc', fontSize: 11, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
               onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#eef2ff' }}
               onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
@@ -385,7 +417,7 @@ function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleC
       </div>
 
       {/* Project tag — below title, shown on click (no indicator) */}
-      {showProject && project && tagOpen && (
+      {showProject && project && tagOpen && !editing && (
         <div style={{ marginTop: 5, paddingLeft: 23, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: project.color }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: project.color, display: 'inline-block' }} />
           {project.title}

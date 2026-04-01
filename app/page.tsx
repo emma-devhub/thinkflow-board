@@ -85,6 +85,11 @@ export default function Home() {
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, checked } : s))
   }, [])
 
+  const handleRenameSession = useCallback((id: string, title: string) => {
+    updateSessionTitle(id, title)
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s))
+  }, [])
+
   const handleOpenCanvas = useCallback((sessionId: string) => {
     setCanvasSessionId(sessionId)
     saveCurrentSessionId(sessionId)
@@ -119,6 +124,7 @@ export default function Home() {
             onDeleteSession={handleDeleteSession}
             onMoveSession={handleMoveSession}
             onToggleChecked={handleToggleChecked}
+            onRenameSession={handleRenameSession}
           />
         </div>
       ) : (
