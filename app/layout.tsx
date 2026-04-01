@@ -20,6 +20,14 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'ThinkFlow',
   description: 'AI research visualization — explore ideas as branching conversation trees',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'ThinkFlow',
+  },
+  other: {
+    'mobile-web-app-capable': 'yes',
+  },
 }
 
 export default function RootLayout({

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="112" fill="#1a1a1a"/>
+  <!-- Node graph: three nodes connected by lines, representing ThinkFlow branching -->
+  <!-- Root node -->
+  <circle cx="256" cy="180" r="32" fill="white"/>
+  <!-- Left node -->
+  <circle cx="152" cy="336" r="24" fill="white" opacity="0.7"/>
+  <!-- Right node -->
+  <circle cx="360" cy="336" r="24" fill="white" opacity="0.7"/>
+  <!-- Lines from root to children -->
+  <line x1="256" y1="212" x2="152" y2="312" stroke="white" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+  <line x1="256" y1="212" x2="360" y2="312" stroke="white" stroke-width="10" stroke-linecap="round" opacity="0.5"/>
+</svg>
