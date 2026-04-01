@@ -32,7 +32,7 @@ export function saveCurrentSessionId(id: string): void {
 
 export function createSession(
   title = 'New session',
-  opts: { projectId?: string; status?: TaskStatus } = {}
+  opts: { projectId?: string; status?: TaskStatus; columnId?: string } = {}
 ): SessionMeta {
   const now = Date.now()
   const session: SessionMeta = {
@@ -42,6 +42,7 @@ export function createSession(
     updatedAt: now,
     status: opts.status ?? 'todo',
     projectId: opts.projectId,
+    columnId: opts.columnId,
   }
   const existing = loadSessionsIndex()
   saveSessionsIndex([session, ...existing])
@@ -68,6 +69,16 @@ export function updateSessionStatus(id: string, status: TaskStatus): void {
 export function updateSessionProject(id: string, projectId: string | undefined): void {
   const existing = loadSessionsIndex()
   saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, projectId } : s))
+}
+
+export function updateSessionColumn(id: string, columnId: string): void {
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, columnId } : s))
+}
+
+export function updateSessionChecked(id: string, checked: boolean): void {
+  const existing = loadSessionsIndex()
+  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, checked } : s))
 }
 
 export function touchSession(id: string): void {

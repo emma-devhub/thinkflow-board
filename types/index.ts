@@ -14,6 +14,8 @@ export interface SessionMeta {
   updatedAt: number
   projectId?: string
   status: TaskStatus
+  columnId?: string
+  checked?: boolean
 }
 
 export interface ConversationMessage {
