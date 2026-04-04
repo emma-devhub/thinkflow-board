@@ -226,7 +226,7 @@ export default function ThinkCanvas({ sessionId, onTitleChange }: ThinkCanvasPro
       )
 
       const isLR = layoutDirRef.current === 'LR'
-      const SLOT_SPACING = isLR ? 310 : 460   // vertical (LR) or horizontal (TB) slot size
+      const SLOT_SPACING = isLR ? 360 : 460   // vertical (LR) or horizontal (TB) slot size
       const L1_OFFSET = isLR ? 560 : 480      // distance from parent along main axis
       const L2_OFFSET = isLR ? 500 : 440      // distance from L1 along main axis
       const SRC_HANDLE = isLR ? 'right' : 'bottom'
