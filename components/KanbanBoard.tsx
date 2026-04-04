@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import type { SessionMeta, Project, TaskStatus } from '@/types'
+import type { SessionMeta, Project, TaskStatus, ParsedTask } from '@/types'
+import BoardChatPanel from './BoardChatPanel'
 
 interface Direction { id: string; label: string; color: string }
 
@@ -15,6 +16,7 @@ interface Props {
   onMoveSession: (id: string, columnId: string) => void
   onToggleChecked: (id: string, checked: boolean) => void
   onRenameSession: (id: string, title: string) => void
+  onCreateTasks: (tasks: ParsedTask[]) => void
   boardView: 'domain' | 'week'
   onBoardViewChange: (v: 'domain' | 'week') => void
 }
@@ -49,9 +51,10 @@ function sessionDirId(s: SessionMeta): string {
 export default function KanbanBoard({
   sessions, projects, selectedProjectId,
   onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
-  boardView, onBoardViewChange,
+  onCreateTasks, boardView, onBoardViewChange,
 }: Props) {
   const [dirs, setDirs] = useState<Direction[]>(loadDirs)
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const [addingDirId, setAddingDirId] = useState<string | null>(null)
   const [addTitle, setAddTitle] = useState('')
   const [editingDirId, setEditingDirId] = useState<string | null>(null)
@@ -111,7 +114,12 @@ export default function KanbanBoard({
   }
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed' }}>
+    <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* Main board area — flex: 1 so it shrinks when panel opens */}
+      <div style={{
+        flex: 1, minWidth: 0,
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed',
+      }}>
       {/* Header */}
       <div style={{
         padding: '18px 24px 14px', display: 'flex', alignItems: 'center', gap: 8,
@@ -121,7 +129,7 @@ export default function KanbanBoard({
           <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>{boardTitle}</div>
           <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{boardSub}</div>
         </div>
-        {/* View toggle + New Focus — all right-aligned */}
+        {/* View toggle + New Focus + AI Chat — all right-aligned */}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
           {(['domain', 'week'] as const).map((v) => (
             <button
@@ -157,11 +165,30 @@ export default function KanbanBoard({
           >
             + New Focus
           </button>
+          <button
+            onClick={() => setIsChatOpen((v) => !v)}
+            style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+              border: '1px solid',
+              borderColor: isChatOpen ? '#1a1a1a' : '#ddd',
+              background: isChatOpen ? '#1a1a1a' : 'white',
+              color: isChatOpen ? 'white' : '#444',
+              transition: 'all 120ms',
+            }}
+            onMouseEnter={(e) => {
+              if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = '#f5f5f5'
+            }}
+            onMouseLeave={(e) => {
+              if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = 'white'
+            }}
+          >
+            ✦ AI
+          </button>
         </div>
       </div>
 
       {/* Columns */}
-      <div style={{ flex: 1, display: 'flex', gap: 16, padding: '20px 24px', overflowX: 'auto', overflowY: 'hidden' }}>
+      <div style={{ flex: 1, display: 'flex', gap: 16, padding: '20px 24px', overflowX: 'hidden', overflowY: 'hidden' }}>
         {dirs.map((dir) => {
           const dirSessions = visibleSessions.filter((s) => sessionDirId(s) === dir.id)
           const isDragOver = dragOverDirId === dir.id
@@ -172,7 +199,7 @@ export default function KanbanBoard({
               onDragLeave={() => setDragOverDirId(null)}
               onDrop={() => handleDrop(dir.id)}
               style={{
-                width: 300, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10,
+                flex: 1, minWidth: 160, display: 'flex', flexDirection: 'column', gap: 10,
                 background: isDragOver ? 'rgba(0,0,0,0.03)' : 'transparent',
                 borderRadius: 10, transition: 'background 100ms',
               }}
@@ -264,6 +291,24 @@ export default function KanbanBoard({
             />
           </div>
         )}
+      </div>
+      </div>{/* end main board area */}
+
+      {/* AI Chat Panel — flex sibling that expands/collapses to push board */}
+      <div style={{
+        flexShrink: 0,
+        width: isChatOpen ? 320 : 0,
+        overflow: 'hidden',
+        transition: 'width 200ms ease',
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <BoardChatPanel
+          projects={projects}
+          dirs={dirs}
+          onCreateTasks={onCreateTasks}
+          onClose={() => setIsChatOpen(false)}
+        />
       </div>
     </div>
   )

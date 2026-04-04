@@ -26,6 +26,13 @@ export interface ConversationMessage {
   content: string
 }
 
+export interface ParsedTask {
+  title: string
+  projectId: string | null
+  columnId: string | null
+  dueDate: string | null  // 'YYYY-MM-DD'
+}
+
 export interface NodeData extends Record<string, unknown> {
   nodeType: 'seed' | 'response' | 'note'
   content: string

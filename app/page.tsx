@@ -24,7 +24,7 @@ import {
   deleteProject,
   updateProjectTitle,
 } from '@/lib/projects'
-import type { SessionMeta, Project } from '@/types'
+import type { SessionMeta, Project, ParsedTask } from '@/types'
 
 const ThinkCanvas = dynamic(() => import('@/components/ThinkCanvas'), { ssr: false })
 
@@ -94,6 +94,17 @@ export default function Home() {
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s))
   }, [])
 
+  const handleCreateTasks = useCallback((tasks: ParsedTask[]) => {
+    tasks.forEach((task) => {
+      const s = createSession(task.title, {
+        projectId: task.projectId ?? undefined,
+        columnId: task.columnId ?? undefined,
+      })
+      if (task.dueDate) updateSessionSchedule(s.id, task.dueDate, undefined)
+      setSessions((prev) => [{ ...s, dueDate: task.dueDate ?? undefined }, ...prev])
+    })
+  }, [])
+
   const handleScheduleSession = useCallback((id: string, dueDate: string | undefined, estimatedMins: number | undefined) => {
     updateSessionSchedule(id, dueDate, estimatedMins)
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
@@ -150,6 +161,7 @@ export default function Home() {
               onMoveSession={handleMoveSession}
               onToggleChecked={handleToggleChecked}
               onRenameSession={handleRenameSession}
+              onCreateTasks={handleCreateTasks}
               boardView={boardView}
               onBoardViewChange={setBoardView}
             />
