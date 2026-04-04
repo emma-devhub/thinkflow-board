@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project } from '@/types'
 
 interface Props {
@@ -54,6 +54,18 @@ export default function WeekBoard({
 }: Props) {
   const weekDays = getWeekDays()
   const dragId = useRef<string | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement>(null)
+  const todayColRef = useRef<HTMLDivElement>(null)
+
+  // Auto-scroll to today on mount
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    const todayEl = todayColRef.current
+    if (!container || !todayEl) return
+    const containerRect = container.getBoundingClientRect()
+    const todayRect = todayEl.getBoundingClientRect()
+    container.scrollLeft += todayRect.left - containerRect.left - 24
+  }, [])
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
   const [dragOverCardPos, setDragOverCardPos] = useState<'above' | 'below'>('below')
@@ -169,7 +181,7 @@ export default function WeekBoard({
       </div>
 
       {/* Columns */}
-      <div style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px', overflowX: 'auto', overflowY: 'hidden' }}>
+      <div ref={scrollContainerRef} style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px', overflowX: 'auto', overflowY: 'hidden' }}>
         {columns.map((col) => {
           const colSessions = visibleSessions
             .filter((s) => getColKey(s) === col.key)
@@ -180,6 +192,7 @@ export default function WeekBoard({
           return (
             <div
               key={col.key}
+              ref={col.isToday ? todayColRef : undefined}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDragState()
