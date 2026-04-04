@@ -17,8 +17,11 @@ Manage multiple independent research sessions. Each session persists in your bro
 ### AI Response Cards
 Every question spawns a new card, streamed token-by-token from Gemini 2.5 Flash. Branch from any card to explore sub-topics with full conversation context preserved along each branch path.
 
-### Markdown to Mind Map
-Ask Gemini to return a structured analysis using `##` and `###` headers — ThinkFlow auto-parses the response and builds a **two-level mind map** in one click, with nodes automatically laid out on the canvas.
+### Adaptive Format — Tree or Chain
+The AI decides the response format based on content. Multi-dimensional topics automatically expand into a **branching mind map**. Focused or follow-up questions stay as a **single connected card**, forming a linear chain. Both patterns coexist naturally on the same canvas.
+
+### Board Assistant (AI Chat Panel)
+A sliding chat panel on the Kanban board powered by Gemini 2.5 Flash. Paste a todo list and the AI parses tasks, infers project/column/dueDate, shows a preview, and creates cards in one click. Also supports general Q&A about your tasks. Toggle with the **✦ AI** button — the panel pushes the board left, all columns remain visible.
 
 ### My Note Cards
 Drop freeform sticky notes anywhere on the canvas. Notes support Markdown rendering and can also be used as branch points to query the AI in context.
@@ -44,7 +47,8 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 | Framework | Next.js 15 (App Router) |
 | Language | TypeScript |
 | Canvas | React Flow (`@xyflow/react`) |
-| AI | Groq — Llama 3.3 70B (streaming) |
+| AI (canvas) | Gemini 2.5 Flash (streaming) |
+| AI (board) | Gemini 2.5 Flash (streaming, Board Assistant) |
 | Styling | Tailwind CSS |
 | Fonts | Lora (serif) + JetBrains Mono |
 | Persistence | Browser localStorage |
