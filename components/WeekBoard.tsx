@@ -181,25 +181,26 @@ export default function WeekBoard({
       </div>
 
       {/* Columns */}
-      <div ref={scrollContainerRef} style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px', overflowX: 'auto', overflowY: 'hidden' }}>
-        {columns.map((col) => {
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+
+      {/* Unscheduled — fixed left, never scrolls */}
+      <div style={{ padding: '20px 0 20px 24px', flexShrink: 0, display: 'flex' }}>
+        {columns.filter((col) => col.key === 'unscheduled').map((col) => {
           const colSessions = visibleSessions
             .filter((s) => getColKey(s) === col.key)
             .sort((a, b) => getOrder(a) - getOrder(b))
           const isDragOver = dragOverCol === col.key
-          const isUnscheduled = col.key === 'unscheduled'
-
+          const isUnscheduled = true
           return (
             <div
               key={col.key}
-              ref={col.isToday ? todayColRef : undefined}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDragState()
               }}
               onDrop={() => handleDrop(col.key)}
               style={{
-                width: isUnscheduled ? 220 : 200,
+                width: 220,
                 flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
@@ -315,6 +316,139 @@ export default function WeekBoard({
             </div>
           )
         })}
+      </div>
+
+      {/* Day columns — scrollable, auto-scrolls to today */}
+      <div ref={scrollContainerRef} style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px 20px 12px', overflowX: 'auto', overflowY: 'hidden' }}>
+        {columns.filter((col) => col.key !== 'unscheduled').map((col) => {
+          const colSessions = visibleSessions
+            .filter((s) => getColKey(s) === col.key)
+            .sort((a, b) => getOrder(a) - getOrder(b))
+          const isDragOver = dragOverCol === col.key
+          const isUnscheduled = false
+          return (
+            <div
+              key={col.key}
+              ref={col.isToday ? todayColRef : undefined}
+              onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
+              onDragLeave={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDragState()
+              }}
+              onDrop={() => handleDrop(col.key)}
+              style={{
+                width: 200,
+                flexShrink: 0,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 8,
+                background: isDragOver && !dragOverCardId ? 'rgba(0,0,0,0.04)' : 'transparent',
+                borderRadius: 10,
+                transition: 'background 100ms',
+              }}
+            >
+              {/* Column header */}
+              <div style={{
+                display: 'flex', alignItems: 'baseline', gap: 6,
+                padding: '0 2px 8px',
+                borderBottom: col.isToday ? '2px solid #5578cc' : '1px solid #e0ddd9',
+              }}>
+                <span style={{
+                  fontSize: 12, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase',
+                  color: col.isToday ? '#5578cc' : '#666',
+                }}>
+                  {col.label}
+                </span>
+                {col.sub && (
+                  <span style={{ fontSize: 11, color: col.isToday ? '#5578cc' : '#bbb' }}>
+                    {col.sub}
+                  </span>
+                )}
+                <span style={{
+                  marginLeft: 'auto', fontSize: 10, background: '#e5e3df',
+                  color: '#999', padding: '1px 5px', borderRadius: 6,
+                }}>
+                  {colSessions.length}
+                </span>
+              </div>
+
+              {/* Cards */}
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {colSessions.map((s) => {
+                  const proj = s.projectId ? projectMap[s.projectId] : null
+                  const isTarget = dragOverCardId === s.id
+                  return (
+                    <div key={s.id}>
+                      {isTarget && dragOverCardPos === 'above' && (
+                        <div style={{ height: 2, background: '#5578cc', borderRadius: 1, marginBottom: 4 }} />
+                      )}
+                      <WeekCard
+                        session={s}
+                        project={proj}
+                        onOpenCanvas={() => onOpenCanvas(s.id)}
+                        onDelete={() => onDelete(s.id)}
+                        onToggleChecked={(v) => onToggleChecked(s.id, v)}
+                        onRename={(title) => onRename(s.id, title)}
+                        onUpdateTime={(mins) => onSchedule(s.id, s.dueDate, mins)}
+                        onDragStart={() => { dragId.current = s.id }}
+                        onDragOver={(e) => handleCardDragOver(e, s.id)}
+                      />
+                      {isTarget && dragOverCardPos === 'below' && (
+                        <div style={{ height: 2, background: '#5578cc', borderRadius: 1, marginTop: 4 }} />
+                      )}
+                    </div>
+                  )
+                })}
+
+                {isDragOver && colSessions.length === 0 && addingColKey !== col.key && (
+                  <div style={{
+                    border: '1.5px dashed #ccc', borderRadius: 8, height: 60,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    color: '#ccc', fontSize: 12,
+                  }}>
+                    放在这里
+                  </div>
+                )}
+
+                {addingColKey === col.key && (
+                  <div style={{
+                    background: 'white', borderRadius: 8, padding: '8px 10px',
+                    border: '1px solid #e8e5e0', borderLeft: `3px solid ${col.isToday ? '#5578cc' : '#ddd'}`,
+                  }}>
+                    <input
+                      autoFocus
+                      value={addTitle}
+                      onChange={(e) => setAddTitle(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') handleAddCommit(col.key)
+                        if (e.key === 'Escape') { setAddingColKey(null); setAddTitle('') }
+                      }}
+                      onBlur={() => handleAddCommit(col.key)}
+                      placeholder="Subtask title…"
+                      style={{ width: '100%', border: 'none', outline: 'none', fontSize: 13, color: '#1a1a1a', background: 'transparent' }}
+                    />
+                  </div>
+                )}
+
+                <button
+                  onClick={() => { setAddingColKey(col.key); setAddTitle('') }}
+                  style={{
+                    border: '1.5px dashed #ddd', borderRadius: 8, padding: '8px 12px',
+                    color: '#bbb', fontSize: 12, cursor: 'pointer',
+                    display: addingColKey === col.key ? 'none' : 'flex',
+                    alignItems: 'center', gap: 6, background: 'transparent', width: '100%',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#bbb'; (e.currentTarget as HTMLElement).style.color = '#999'; (e.currentTarget as HTMLElement).style.background = 'white' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#ddd'; (e.currentTarget as HTMLElement).style.color = '#bbb'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  + Add subtask
+                </button>
+              </div>
+            </div>
+          )
+        })}
+      </div>
+
       </div>
     </div>
   )
