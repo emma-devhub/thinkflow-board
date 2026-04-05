@@ -1,7 +1,8 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import type { SessionMeta, Project } from '@/types'
+import type { SessionMeta, Project, ParsedTask } from '@/types'
+import BoardChatPanel from './BoardChatPanel'
 
 interface Props {
   sessions: SessionMeta[]
@@ -14,6 +15,7 @@ interface Props {
   onToggleChecked: (id: string, checked: boolean) => void
   onRename: (id: string, title: string) => void
   onOpenCanvas: (id: string) => void
+  onCreateTasks: (tasks: ParsedTask[]) => void
   boardView: 'domain' | 'week'
   onBoardViewChange: (v: 'domain' | 'week') => void
 }
@@ -50,9 +52,10 @@ function formatDayHeader(date: string): string {
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
   onSchedule, onReorderWeek, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
-  boardView, onBoardViewChange,
+  onCreateTasks, boardView, onBoardViewChange,
 }: Props) {
   const weekDays = getWeekDays()
+  const [isChatOpen, setIsChatOpen] = useState(false)
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const todayColRef = useRef<HTMLDivElement>(null)
@@ -159,6 +162,21 @@ export default function WeekBoard({
           <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{boardSub}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button
+            onClick={() => setIsChatOpen((v) => !v)}
+            style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+              border: '1px solid',
+              borderColor: isChatOpen ? '#1a1a1a' : '#ddd',
+              background: isChatOpen ? '#1a1a1a' : 'white',
+              color: isChatOpen ? 'white' : '#444',
+              transition: 'all 120ms',
+            }}
+            onMouseEnter={(e) => { if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
+            onMouseLeave={(e) => { if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = 'white' }}
+          >
+            ✦ AI
+          </button>
           {(['domain', 'week'] as const).map((v) => (
             <button
               key={v}
@@ -179,6 +197,9 @@ export default function WeekBoard({
           ))}
         </div>
       </div>
+
+      {/* Body: columns + AI chat panel */}
+      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
       {/* Columns */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
@@ -449,7 +470,25 @@ export default function WeekBoard({
         })}
       </div>
 
+      </div>{/* end columns */}
+
+      {/* AI Chat Panel */}
+      <div style={{
+        width: isChatOpen ? 320 : 0,
+        flexShrink: 0,
+        overflow: 'hidden',
+        transition: 'width 200ms ease',
+        borderLeft: isChatOpen ? '1px solid #e0ddd9' : 'none',
+      }}>
+        <BoardChatPanel
+          projects={projects}
+          dirs={[]}
+          onCreateTasks={onCreateTasks}
+          onClose={() => setIsChatOpen(false)}
+        />
       </div>
+
+      </div>{/* end body */}
     </div>
   )
 }

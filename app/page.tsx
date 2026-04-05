@@ -183,6 +183,7 @@ export default function Home() {
               onToggleChecked={handleToggleChecked}
               onRename={handleRenameSession}
               onOpenCanvas={handleOpenCanvas}
+              onCreateTasks={handleCreateTasks}
               boardView={boardView}
               onBoardViewChange={setBoardView}
             />
