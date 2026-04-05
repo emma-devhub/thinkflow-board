@@ -33,6 +33,12 @@ export interface ParsedTask {
   dueDate: string | null  // 'YYYY-MM-DD'
 }
 
+export interface Direction {
+  id: string
+  label: string
+  color: string
+}
+
 export interface NodeData extends Record<string, unknown> {
   nodeType: 'seed' | 'response' | 'note'
   content: string

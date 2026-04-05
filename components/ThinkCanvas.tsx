@@ -19,7 +19,7 @@ import DeletableEdge from './DeletableEdge'
 import ExpandModal from './ExpandModal'
 import { NodeData, ConversationMessage } from '@/types'
 
-import { canvasKey } from '@/lib/sessions'
+import { loadCanvas, saveCanvas, clearCanvas } from '@/lib/canvas'
 
 const nodeTypes = { research: ResearchNode }
 const edgeTypes = { default: DeletableEdge }
@@ -98,6 +98,7 @@ export default function ThinkCanvas({ sessionId, onTitleChange }: ThinkCanvasPro
   const layoutDirRef = useRef<'LR' | 'TB'>('LR')
   const rfInstanceRef = useRef<ReactFlowInstance<ResearchNodeType, Edge> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => { nodesRef.current = nodes }, [nodes])
   useEffect(() => { edgesRef.current = edges }, [edges])
@@ -107,32 +108,27 @@ export default function ThinkCanvas({ sessionId, onTitleChange }: ThinkCanvasPro
   useEffect(() => {
     setNodes([])
     setEdges([])
-    try {
-      const saved = localStorage.getItem(canvasKey(sessionId))
-      if (saved) {
-        const { nodes: savedNodes, edges: savedEdges } = JSON.parse(saved)
-        const restored = (savedNodes as ResearchNodeType[]).map((n) => attachCallbacks(n))
-        setNodes(restored)
-        setEdges(savedEdges)
-      }
-      const savedDir = localStorage.getItem(canvasKey(sessionId) + ':dir')
-      if (savedDir === 'LR' || savedDir === 'TB') setLayoutDir(savedDir)
-      else setLayoutDir('LR')
-    } catch { /* ignore */ }
+    setLayoutDir('LR')
+    loadCanvas(sessionId).then((state) => {
+      if (!state) return
+      setNodes(state.nodes.map((n) => attachCallbacks(n)))
+      setEdges(state.edges)
+      setLayoutDir(state.layoutDir)
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId])
 
-  // Save completed nodes whenever canvas changes
+  // Save completed nodes whenever canvas changes (debounced 1.5s)
   useEffect(() => {
     if (nodes.length === 0) return
-    try {
-      const stripped = nodes
-        .filter((n) => !n.data.isLoading)
-        .map((n) => ({ ...n, data: { ...n.data, onContinue: undefined, onExpand: undefined, onDelete: undefined, onUpdateNote: undefined } }))
-      if (stripped.length === 0) return
-      localStorage.setItem(canvasKey(sessionId), JSON.stringify({ nodes: stripped, edges }))
-      localStorage.setItem(canvasKey(sessionId) + ':dir', layoutDir)
-    } catch { /* ignore */ }
+    const stripped = nodes
+      .filter((n) => !n.data.isLoading)
+      .map((n) => ({ ...n, data: { ...n.data, onContinue: undefined, onExpand: undefined, onDelete: undefined, onUpdateNote: undefined } }))
+    if (stripped.length === 0) return
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current)
+    saveTimerRef.current = setTimeout(() => {
+      saveCanvas(sessionId, stripped, edges, layoutDir)
+    }, 1500)
   }, [nodes, edges, sessionId, layoutDir])
 
   const handleDeleteNode = useCallback((nodeId: string) => {
@@ -504,7 +500,7 @@ export default function ThinkCanvas({ sessionId, onTitleChange }: ThinkCanvasPro
     setNodes([])
     setEdges([])
     setShowNewInput(false)
-    localStorage.removeItem(canvasKey(sessionId))
+    clearCanvas(sessionId)
     setSeedInput('')
     setTimeout(() => seedInputRef.current?.focus(), 50)
   }

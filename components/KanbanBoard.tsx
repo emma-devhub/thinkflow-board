@@ -1,10 +1,9 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, TaskStatus, ParsedTask } from '@/types'
 import BoardChatPanel from './BoardChatPanel'
-
-interface Direction { id: string; label: string; color: string }
+import { type Direction, loadDirections, saveDirections, EXTRA_COLORS } from '@/lib/directions'
 
 interface Props {
   sessions: SessionMeta[]
@@ -21,27 +20,6 @@ interface Props {
   onBoardViewChange: (v: 'domain' | 'week') => void
 }
 
-// ── Direction (column) persistence ──────────────────────────────────────────
-const DIR_KEY = 'thinkflow-directions'
-const EXTRA_COLORS = ['#a06ec8', '#c86e6e', '#6ec8c0', '#6e8ec8']
-
-const DEFAULT_DIRS: Direction[] = [
-  { id: 'todo',       label: '主业', color: 'hsl(0,0%,72%)' },
-  { id: 'inprogress', label: '副业', color: '#f0a843' },
-  { id: 'done',       label: '生活', color: '#4caf86' },
-]
-
-function loadDirs(): Direction[] {
-  try {
-    const raw = localStorage.getItem(DIR_KEY)
-    return raw ? JSON.parse(raw) : [...DEFAULT_DIRS]
-  } catch { return [...DEFAULT_DIRS] }
-}
-
-function saveDirs(dirs: Direction[]) {
-  try { localStorage.setItem(DIR_KEY, JSON.stringify(dirs)) } catch { /* ignore */ }
-}
-
 // Which column does a session belong to?
 function sessionDirId(s: SessionMeta): string {
   return s.columnId ?? s.status
@@ -53,7 +31,8 @@ export default function KanbanBoard({
   onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
   onCreateTasks, boardView, onBoardViewChange,
 }: Props) {
-  const [dirs, setDirs] = useState<Direction[]>(loadDirs)
+  const [dirs, setDirs] = useState<Direction[]>([])
+  useEffect(() => { loadDirections().then(setDirs) }, [])
   const [isChatOpen, setIsChatOpen] = useState(false)
   const [addingDirId, setAddingDirId] = useState<string | null>(null)
   const [addTitle, setAddTitle] = useState('')
@@ -74,7 +53,7 @@ export default function KanbanBoard({
     ? `${visibleSessions.length} subtask${visibleSessions.length !== 1 ? 's' : ''} across ${projects.length} project${projects.length !== 1 ? 's' : ''}`
     : `${visibleSessions.length} subtask${visibleSessions.length !== 1 ? 's' : ''}`
 
-  const updateDirs = (next: Direction[]) => { setDirs(next); saveDirs(next) }
+  const updateDirs = (next: Direction[]) => { setDirs(next); saveDirections(next) }
 
   const commitDirLabel = (id: string) => {
     const t = dirLabelDraft.trim()

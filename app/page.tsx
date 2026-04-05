@@ -41,76 +41,82 @@ export default function Home() {
 
   // Bootstrap on mount
   useEffect(() => {
-    setSessions(loadSessionsIndex())
-    setProjects(loadProjects())
-    const lastId = loadCurrentSessionId()
-    if (lastId) setCanvasSessionId(lastId)
+    ;(async () => {
+      const [loadedSessions, loadedProjects] = await Promise.all([
+        loadSessionsIndex(),
+        loadProjects(),
+      ])
+      setSessions(loadedSessions)
+      setProjects(loadedProjects)
+      const lastId = loadCurrentSessionId()
+      if (lastId) setCanvasSessionId(lastId)
+    })()
   }, [])
 
   // ── Project callbacks ──
-  const handleCreateProject = useCallback((title: string) => {
-    const p = createProject(title)
+  const handleCreateProject = useCallback(async (title: string) => {
+    const p = await createProject(title)
     setProjects((prev) => [...prev, p])
   }, [])
 
-  const handleDeleteProject = useCallback((id: string) => {
-    deleteProject(id)
+  const handleDeleteProject = useCallback(async (id: string) => {
+    await deleteProject(id)
     setProjects((prev) => prev.filter((p) => p.id !== id))
     // unassign sessions from deleted project
     setSessions((prev) => prev.map((s) => s.projectId === id ? { ...s, projectId: undefined } : s))
     if (selectedProjectId === id) setSelectedProjectId(null)
   }, [selectedProjectId])
 
-  const handleRenameProject = useCallback((id: string, title: string) => {
-    updateProjectTitle(id, title)
+  const handleRenameProject = useCallback(async (id: string, title: string) => {
+    await updateProjectTitle(id, title)
     setProjects((prev) => prev.map((p) => p.id === id ? { ...p, title } : p))
   }, [])
 
   // ── Session/subtask callbacks ──
-  const handleCreateSession = useCallback((title: string, projectId?: string, columnId?: string) => {
-    const s = createSession(title, { projectId, columnId })
+  const handleCreateSession = useCallback(async (title: string, projectId?: string, columnId?: string) => {
+    const s = await createSession(title, { projectId, columnId })
     setSessions((prev) => [s, ...prev])
     setCanvasSessionId(s.id)
   }, [])
 
-  const handleDeleteSession = useCallback((id: string) => {
-    deleteSession(id)
+  const handleDeleteSession = useCallback(async (id: string) => {
+    await deleteSession(id)
     setSessions((prev) => prev.filter((s) => s.id !== id))
     if (canvasSessionId === id) setCanvasSessionId('')
   }, [canvasSessionId])
 
-  const handleMoveSession = useCallback((id: string, columnId: string) => {
+  const handleMoveSession = useCallback(async (id: string, columnId: string) => {
     updateSessionColumn(id, columnId)
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, columnId } : s))
   }, [])
 
-  const handleToggleChecked = useCallback((id: string, checked: boolean) => {
+  const handleToggleChecked = useCallback(async (id: string, checked: boolean) => {
     updateSessionChecked(id, checked)
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, checked } : s))
   }, [])
 
-  const handleRenameSession = useCallback((id: string, title: string) => {
+  const handleRenameSession = useCallback(async (id: string, title: string) => {
     updateSessionTitle(id, title)
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, title } : s))
   }, [])
 
-  const handleCreateTasks = useCallback((tasks: ParsedTask[]) => {
-    tasks.forEach((task) => {
-      const s = createSession(task.title, {
+  const handleCreateTasks = useCallback(async (tasks: ParsedTask[]) => {
+    for (const task of tasks) {
+      const s = await createSession(task.title, {
         projectId: task.projectId ?? undefined,
         columnId: task.columnId ?? undefined,
       })
       if (task.dueDate) updateSessionSchedule(s.id, task.dueDate, undefined)
       setSessions((prev) => [{ ...s, dueDate: task.dueDate ?? undefined }, ...prev])
-    })
+    }
   }, [])
 
-  const handleScheduleSession = useCallback((id: string, dueDate: string | undefined, estimatedMins: number | undefined) => {
+  const handleScheduleSession = useCallback(async (id: string, dueDate: string | undefined, estimatedMins: number | undefined) => {
     updateSessionSchedule(id, dueDate, estimatedMins)
     setSessions((prev) => prev.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
   }, [])
 
-  const handleReorderWeek = useCallback((updates: { id: string; weekOrder: number }[]) => {
+  const handleReorderWeek = useCallback(async (updates: { id: string; weekOrder: number }[]) => {
     updateSessionsWeekOrder(updates)
     setSessions((prev) => prev.map((s) => {
       const u = updates.find((x) => x.id === s.id)
@@ -118,8 +124,8 @@ export default function Home() {
     }))
   }, [])
 
-  const handleCreateWeekSession = useCallback((title: string, projectId?: string, dueDate?: string) => {
-    const s = createSession(title, { projectId })
+  const handleCreateWeekSession = useCallback(async (title: string, projectId?: string, dueDate?: string) => {
+    const s = await createSession(title, { projectId })
     if (dueDate) updateSessionSchedule(s.id, dueDate, undefined)
     setSessions((prev) => [{ ...s, dueDate }, ...prev])
     setCanvasSessionId(s.id)

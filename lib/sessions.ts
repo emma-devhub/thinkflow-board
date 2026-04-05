@@ -1,39 +1,51 @@
 import type { SessionMeta, TaskStatus } from '@/types'
+import { supabase } from '@/lib/supabase'
 
-const INDEX_KEY = 'thinkflow-sessions'
 const CURRENT_KEY = 'thinkflow-current'
-export const canvasKey = (id: string) => `thinkflow-canvas-${id}`
 
-export function loadSessionsIndex(): SessionMeta[] {
-  try {
-    const raw = localStorage.getItem(INDEX_KEY)
-    if (!raw) return []
-    const arr = JSON.parse(raw) as SessionMeta[]
-    // backfill legacy sessions missing new fields
-    return arr
-      .map((s) => ({ ...s, status: s.status ?? ('todo' as TaskStatus), updatedAt: s.updatedAt ?? s.createdAt }))
-      .sort((a, b) => (b.updatedAt ?? b.createdAt) - (a.updatedAt ?? a.createdAt))
-  } catch { return [] }
-}
-
-export function saveSessionsIndex(sessions: SessionMeta[]): void {
-  try {
-    localStorage.setItem(INDEX_KEY, JSON.stringify(sessions))
-  } catch { /* ignore */ }
-}
+// ── Current session (UI preference only, stays in localStorage) ──────────────
 
 export function loadCurrentSessionId(): string | null {
-  return localStorage.getItem(CURRENT_KEY)
+  try { return localStorage.getItem(CURRENT_KEY) } catch { return null }
 }
 
 export function saveCurrentSessionId(id: string): void {
-  localStorage.setItem(CURRENT_KEY, id)
+  try { localStorage.setItem(CURRENT_KEY, id) } catch { /* ignore */ }
 }
 
-export function createSession(
+// ── DB helpers ────────────────────────────────────────────────────────────────
+
+function rowToSession(row: Record<string, unknown>): SessionMeta {
+  return {
+    id: row.id as string,
+    title: row.title as string,
+    createdAt: row.created_at as number,
+    updatedAt: (row.updated_at as number) ?? (row.created_at as number),
+    status: (row.status as TaskStatus) ?? 'todo',
+    projectId: (row.project_id as string | null) ?? undefined,
+    columnId: (row.column_id as string | null) ?? undefined,
+    checked: (row.checked as boolean) ?? false,
+    dueDate: (row.due_date as string | null) ?? undefined,
+    estimatedMins: (row.estimated_mins as number | null) ?? undefined,
+    weekOrder: (row.week_order as number | null) ?? undefined,
+  }
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+export async function loadSessionsIndex(): Promise<SessionMeta[]> {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .order('updated_at', { ascending: false })
+  if (error) { console.error('loadSessionsIndex:', error); return [] }
+  return (data ?? []).map(rowToSession)
+}
+
+export async function createSession(
   title = 'New session',
   opts: { projectId?: string; status?: TaskStatus; columnId?: string } = {}
-): SessionMeta {
+): Promise<SessionMeta> {
   const now = Date.now()
   const session: SessionMeta = {
     id: `sess-${now}-${Math.random().toString(36).slice(2, 7)}`,
@@ -44,55 +56,98 @@ export function createSession(
     projectId: opts.projectId,
     columnId: opts.columnId,
   }
-  const existing = loadSessionsIndex()
-  saveSessionsIndex([session, ...existing])
+  const { error } = await supabase.from('sessions').insert({
+    id: session.id,
+    title: session.title,
+    created_at: session.createdAt,
+    updated_at: session.updatedAt,
+    status: session.status,
+    project_id: session.projectId ?? null,
+    column_id: session.columnId ?? null,
+  })
+  if (error) console.error('createSession:', error)
   saveCurrentSessionId(session.id)
   return session
 }
 
-export function deleteSession(id: string): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.filter((s) => s.id !== id))
-  try { localStorage.removeItem(canvasKey(id)) } catch { /* ignore */ }
+export async function deleteSession(id: string): Promise<void> {
+  const { error } = await supabase.from('sessions').delete().eq('id', id)
+  if (error) console.error('deleteSession:', error)
+  // canvas_states row cascades automatically
 }
 
-export function updateSessionTitle(id: string, title: string): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, title: title.slice(0, 60) } : s))
+export async function updateSessionTitle(id: string, title: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ title: title.slice(0, 60), updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('updateSessionTitle:', error)
 }
 
-export function updateSessionStatus(id: string, status: TaskStatus): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, status } : s))
+export async function updateSessionStatus(id: string, status: TaskStatus): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ status, updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('updateSessionStatus:', error)
 }
 
-export function updateSessionProject(id: string, projectId: string | undefined): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, projectId } : s))
+export async function updateSessionProject(id: string, projectId: string | undefined): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ project_id: projectId ?? null, updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('updateSessionProject:', error)
 }
 
-export function updateSessionColumn(id: string, columnId: string): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, columnId } : s))
+export async function updateSessionColumn(id: string, columnId: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ column_id: columnId, updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('updateSessionColumn:', error)
 }
 
-export function updateSessionChecked(id: string, checked: boolean): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, checked } : s))
+export async function updateSessionChecked(id: string, checked: boolean): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ checked, updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('updateSessionChecked:', error)
 }
 
-export function updateSessionSchedule(id: string, dueDate: string | undefined, estimatedMins: number | undefined): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, dueDate, estimatedMins } : s))
+export async function updateSessionSchedule(
+  id: string,
+  dueDate: string | undefined,
+  estimatedMins: number | undefined
+): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({
+      due_date: dueDate ?? null,
+      estimated_mins: estimatedMins ?? null,
+      updated_at: Date.now(),
+    })
+    .eq('id', id)
+  if (error) console.error('updateSessionSchedule:', error)
 }
 
-export function updateSessionsWeekOrder(updates: { id: string; weekOrder: number }[]): void {
-  const map = Object.fromEntries(updates.map((u) => [u.id, u.weekOrder]))
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => map[s.id] !== undefined ? { ...s, weekOrder: map[s.id] } : s))
+export async function updateSessionsWeekOrder(updates: { id: string; weekOrder: number }[]): Promise<void> {
+  // Fire parallel updates
+  await Promise.all(
+    updates.map(({ id, weekOrder }) =>
+      supabase
+        .from('sessions')
+        .update({ week_order: weekOrder, updated_at: Date.now() })
+        .eq('id', id)
+    )
+  )
 }
 
-export function touchSession(id: string): void {
-  const existing = loadSessionsIndex()
-  saveSessionsIndex(existing.map((s) => s.id === id ? { ...s, updatedAt: Date.now() } : s))
+export async function touchSession(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('touchSession:', error)
 }

@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.101.1",
     "@xyflow/react": "^12.10.2",
     "next": "16.2.1",
     "react": "19.2.4",
