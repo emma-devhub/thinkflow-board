@@ -19,6 +19,8 @@ export interface SessionMeta {
   dueDate?: string      // 'YYYY-MM-DD'
   estimatedMins?: number
   weekOrder?: number    // sort key within a day column (lower = higher up)
+  recurringGroupId?: string  // shared ID across all instances of a recurring task
+  weeklyTarget?: number      // total times per week (e.g. 3 for "gym 3x/week")
 }
 
 export interface ConversationMessage {
@@ -30,7 +32,9 @@ export interface ParsedTask {
   title: string
   projectId: string | null
   columnId: string | null
-  dueDate: string | null  // 'YYYY-MM-DD'
+  dueDate: string | null      // 'YYYY-MM-DD' (used only when weeklyTarget is absent)
+  weeklyTarget?: number       // if set, this is a recurring task
+  plannedDays?: string[]      // 'YYYY-MM-DD' list, one per instance (length = weeklyTarget)
 }
 
 export interface Direction {

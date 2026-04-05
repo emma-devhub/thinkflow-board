@@ -28,6 +28,8 @@ function rowToSession(row: Record<string, unknown>): SessionMeta {
     dueDate: (row.due_date as string | null) ?? undefined,
     estimatedMins: (row.estimated_mins as number | null) ?? undefined,
     weekOrder: (row.week_order as number | null) ?? undefined,
+    recurringGroupId: (row.recurring_group_id as string | null) ?? undefined,
+    weeklyTarget: (row.weekly_target as number | null) ?? undefined,
   }
 }
 
@@ -150,4 +152,46 @@ export async function touchSession(id: string): Promise<void> {
     .update({ updated_at: Date.now() })
     .eq('id', id)
   if (error) console.error('touchSession:', error)
+}
+
+export async function createRecurringSessions(
+  title: string,
+  weeklyTarget: number,
+  plannedDays: string[],
+  opts: { projectId?: string; columnId?: string } = {}
+): Promise<SessionMeta[]> {
+  const groupId = `rg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+  const now = Date.now()
+  const rows = plannedDays.map((dueDate, i) => {
+    const id = `sess-${now + i}-${Math.random().toString(36).slice(2, 7)}`
+    return {
+      id,
+      title: title.trim().slice(0, 60) || 'New session',
+      created_at: now + i,
+      updated_at: now + i,
+      status: 'todo' as TaskStatus,
+      project_id: opts.projectId ?? null,
+      column_id: opts.columnId ?? null,
+      due_date: dueDate,
+      recurring_group_id: groupId,
+      weekly_target: weeklyTarget,
+    }
+  })
+
+  const { error } = await supabase.from('sessions').insert(rows)
+  if (error) console.error('createRecurringSessions:', error)
+
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+    status: row.status,
+    projectId: opts.projectId,
+    columnId: opts.columnId,
+    checked: false,
+    dueDate: row.due_date,
+    recurringGroupId: groupId,
+    weeklyTarget,
+  }))
 }

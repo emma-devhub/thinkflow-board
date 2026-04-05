@@ -49,6 +49,17 @@ function formatDayHeader(date: string): string {
   return `${parseInt(m)}/${parseInt(d)}`
 }
 
+// ── Recurring progress helper ─────────────────────────────────────────────────
+function getRecurringProgress(
+  session: SessionMeta,
+  allSessions: SessionMeta[]
+): { done: number; total: number } | null {
+  if (!session.recurringGroupId || !session.weeklyTarget) return null
+  const group = allSessions.filter((s) => s.recurringGroupId === session.recurringGroupId)
+  const done = group.filter((s) => s.checked).length
+  return { done, total: session.weeklyTarget }
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
@@ -57,6 +68,7 @@ export default function WeekBoard({
 }: Props) {
   const isMobile = useIsMobile()
   const weekDays = getWeekDays()
+  const today = localDateStr(new Date())
   const [isChatOpen, setIsChatOpen] = useState(false)
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -168,21 +180,6 @@ export default function WeekBoard({
           <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>{boardSub}</div>
         </div>
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => setIsChatOpen((v) => !v)}
-            style={{
-              padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
-              border: '1px solid',
-              borderColor: isChatOpen ? '#1a1a1a' : '#ddd',
-              background: isChatOpen ? '#1a1a1a' : 'white',
-              color: isChatOpen ? 'white' : '#444',
-              transition: 'all 120ms',
-            }}
-            onMouseEnter={(e) => { if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
-            onMouseLeave={(e) => { if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = 'white' }}
-          >
-            ✦ AI
-          </button>
           {(['domain', 'week'] as const).map((v) => (
             <button
               key={v}
@@ -201,6 +198,21 @@ export default function WeekBoard({
               {v === 'domain' ? 'By Focus' : 'By Time'}
             </button>
           ))}
+          <button
+            onClick={() => setIsChatOpen((v) => !v)}
+            style={{
+              padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
+              border: '1px solid',
+              borderColor: isChatOpen ? '#1a1a1a' : '#ddd',
+              background: isChatOpen ? '#1a1a1a' : 'white',
+              color: isChatOpen ? 'white' : '#444',
+              transition: 'all 120ms',
+            }}
+            onMouseEnter={(e) => { if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
+            onMouseLeave={(e) => { if (!isChatOpen) (e.currentTarget as HTMLElement).style.background = 'white' }}
+          >
+            ✦ AI
+          </button>
         </div>
       </div>
 
@@ -208,7 +220,7 @@ export default function WeekBoard({
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
       {/* Columns — desktop: horizontal row, mobile: vertical stack */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: isMobile ? 'auto' : 'hidden' }}>
+      <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: isMobile ? 'auto' : 'hidden' }}>
 
       {/* Unscheduled — desktop: fixed left; mobile: first in vertical stack */}
       <div style={isMobile ? { padding: '16px 16px 0' } : { padding: '20px 0 20px 24px', flexShrink: 0, display: 'flex' }}>
@@ -276,6 +288,8 @@ export default function WeekBoard({
                       <WeekCard
                         session={s}
                         project={proj}
+                        recurringProgress={getRecurringProgress(s, sessions)}
+                        isOverdue={!s.checked && !!s.recurringGroupId && !!s.dueDate && s.dueDate < today}
                         onOpenCanvas={() => onOpenCanvas(s.id)}
                         onDelete={() => onDelete(s.id)}
                         onToggleChecked={(v) => onToggleChecked(s.id, v)}
@@ -417,6 +431,8 @@ export default function WeekBoard({
                       <WeekCard
                         session={s}
                         project={proj}
+                        recurringProgress={getRecurringProgress(s, sessions)}
+                        isOverdue={!s.checked && !!s.recurringGroupId && !!s.dueDate && s.dueDate < today}
                         onOpenCanvas={() => onOpenCanvas(s.id)}
                         onDelete={() => onDelete(s.id)}
                         onToggleChecked={(v) => onToggleChecked(s.id, v)}
@@ -490,7 +506,8 @@ export default function WeekBoard({
         flexShrink: 0,
         overflow: 'hidden',
         transition: 'width 200ms ease',
-        borderLeft: isChatOpen ? '1px solid #e0ddd9' : 'none',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         <BoardChatPanel
           projects={projects}
@@ -506,9 +523,11 @@ export default function WeekBoard({
 }
 
 // ── WeekCard ──────────────────────────────────────────────────────────────────
-function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onDragStart, onDragOver }: {
+function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onDragStart, onDragOver }: {
   session: SessionMeta
   project: Project | null | undefined
+  recurringProgress: { done: number; total: number } | null
+  isOverdue: boolean
   onOpenCanvas: () => void
   onDelete: () => void
   onToggleChecked: (v: boolean) => void
@@ -523,7 +542,7 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
   // const [editingTime, setEditingTime] = useState(false)
   // const [timeDraft, setTimeDraft] = useState(String(session.estimatedMins ?? ''))
 
-  const accentColor = project?.color ?? '#ddd'
+  const accentColor = isOverdue ? '#e8a838' : (project?.color ?? '#ddd')
   const checked = !!session.checked
 
   const commitTitle = () => {
@@ -595,18 +614,26 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
             }}
           />
         ) : (
-          <span
-            onClick={(e) => { e.stopPropagation(); setDraft(session.title); setEditing(true) }}
-            style={{
-              flex: 1, fontSize: 13, lineHeight: 1.4,
-              textDecoration: checked ? 'line-through' : 'none',
-              color: checked ? '#aaa' : '#1a1a1a',
-              overflow: 'hidden', display: '-webkit-box',
-              WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', cursor: 'text',
-            } as React.CSSProperties}
-          >
-            {session.title}
-          </span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <span
+              onClick={(e) => { e.stopPropagation(); setDraft(session.title); setEditing(true) }}
+              style={{
+                fontSize: 13, lineHeight: 1.4,
+                textDecoration: checked ? 'line-through' : 'none',
+                color: checked ? '#aaa' : '#1a1a1a',
+                overflow: 'hidden', display: '-webkit-box',
+                WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', cursor: 'text',
+              } as React.CSSProperties}
+            >
+              {session.title}
+            </span>
+            {recurringProgress && (
+              <div style={{ marginTop: 3, fontSize: 10, color: recurringProgress.done >= recurringProgress.total ? '#4caf86' : (isOverdue ? '#e8a838' : '#aaa'), fontWeight: 600 }}>
+                {recurringProgress.done}/{recurringProgress.total}次
+                {isOverdue && !checked && <span style={{ marginLeft: 4, fontWeight: 400 }}>· 逾期</span>}
+              </div>
+            )}
+          </div>
         )}
 
         {hovered && !editing && (

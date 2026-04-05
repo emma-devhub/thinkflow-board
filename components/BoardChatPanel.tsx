@@ -268,13 +268,14 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
                           {msg.tasks.map((task, i) => {
                             const proj = task.projectId ? projectMap[task.projectId] : null
                             const col = task.columnId ? dirMap[task.columnId] : null
+                            const isRecurring = !!task.weeklyTarget
                             return (
                               <div
                                 key={i}
                                 style={{
                                   padding: '5px 12px',
                                   display: 'flex', alignItems: 'flex-start', gap: 7,
-                                  borderLeft: `3px solid ${proj?.color ?? '#e0ddd9'}`,
+                                  borderLeft: `3px solid ${isRecurring ? '#e8a838' : (proj?.color ?? '#e0ddd9')}`,
                                   marginLeft: 8, marginBottom: 2,
                                 }}
                               >
@@ -285,6 +286,11 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
                                 <div style={{ flex: 1, minWidth: 0 }}>
                                   <div style={{ fontSize: 12, color: '#1a1a1a', lineHeight: 1.4, wordBreak: 'break-word' }}>
                                     {task.title}
+                                    {isRecurring && (
+                                      <span style={{ marginLeft: 5, fontSize: 10, color: '#e8a838', fontWeight: 600 }}>
+                                        ×{task.weeklyTarget}次/周
+                                      </span>
+                                    )}
                                   </div>
                                   <div style={{ display: 'flex', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
                                     {proj && (
@@ -311,6 +317,14 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
                                         {formatDueDate(task.dueDate)}
                                       </span>
                                     )}
+                                    {isRecurring && task.plannedDays && task.plannedDays.map((d) => (
+                                      <span key={d} style={{
+                                        fontSize: 10, color: '#e8a838',
+                                        background: '#fdf3e3', padding: '1px 5px', borderRadius: 4,
+                                      }}>
+                                        {formatDueDate(d)}
+                                      </span>
+                                    ))}
                                   </div>
                                 </div>
                               </div>
@@ -331,7 +345,10 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
                             onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85' }}
                             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
                           >
-                            Add {msg.tasks.length} task{msg.tasks.length !== 1 ? 's' : ''}
+                            {(() => {
+                              const total = msg.tasks!.reduce((sum, t) => sum + (t.weeklyTarget ?? 1), 0)
+                              return `Add ${total} card${total !== 1 ? 's' : ''}`
+                            })()}
                           </button>
                         </div>
                       </>

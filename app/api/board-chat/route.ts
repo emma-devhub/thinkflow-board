@@ -39,6 +39,14 @@ interface ColumnInfo {
   label: string
 }
 
+function getMonday(today: string): string {
+  const d = new Date(today)
+  const day = d.getDay() // 0=Sun
+  const diff = (day === 0 ? -6 : 1 - day)
+  d.setDate(d.getDate() + diff)
+  return d.toISOString().slice(0, 10)
+}
+
 function buildSystemPrompt(
   projects: ProjectInfo[],
   columns: ColumnInfo[],
@@ -75,6 +83,16 @@ When the user says things like "添加todo", "add tasks", "create tasks", "帮�
 
 - You can add a brief friendly message before or after the <tasks> block.
 - IMPORTANT: The JSON inside <tasks> must be valid, compact JSON on a single line.
+
+**Recurring / count-based tasks**
+When the user mentions a count target like "3次", "每周3次", "3x/week", or specifies planned days like "暂定135"(Mon/Wed/Fri), "246"(Tue/Thu/Sat), "每天" etc:
+- Treat this as ONE recurring task with a weekly count goal
+- Set "weeklyTarget" to the count (e.g. 3)
+- Set "plannedDays" to an array of YYYY-MM-DD dates for this week matching the specified days. If no days specified, spread evenly across weekdays. Always output exactly weeklyTarget dates.
+- Day mapping for current week (Mon=${getMonday(today)}): 1=Mon, 2=Tue, 3=Wed, 4=Thu, 5=Fri, 6=Sat, 7=Sun
+- Leave "dueDate" as null for recurring tasks
+- Example output for "去gym 3次 暂定135":
+<tasks>[{"title":"去gym","projectId":null,"columnId":null,"dueDate":null,"weeklyTarget":3,"plannedDays":["YYYY-MM-DD(Mon)","YYYY-MM-DD(Wed)","YYYY-MM-DD(Fri)"]}]</tasks>
 
 **2. Answering questions**
 You can answer questions about tasks, projects, or productivity. Keep responses concise.

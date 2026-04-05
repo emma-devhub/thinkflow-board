@@ -11,6 +11,7 @@ import {
   loadCurrentSessionId,
   saveCurrentSessionId,
   createSession,
+  createRecurringSessions,
   deleteSession,
   updateSessionTitle,
   updateSessionColumn,
@@ -108,12 +109,22 @@ export default function Home() {
 
   const handleCreateTasks = useCallback(async (tasks: ParsedTask[]) => {
     for (const task of tasks) {
-      const s = await createSession(task.title, {
-        projectId: task.projectId ?? undefined,
-        columnId: task.columnId ?? undefined,
-      })
-      if (task.dueDate) updateSessionSchedule(s.id, task.dueDate, undefined)
-      setSessions((prev) => [{ ...s, dueDate: task.dueDate ?? undefined }, ...prev])
+      if (task.weeklyTarget && task.plannedDays && task.plannedDays.length > 0) {
+        const sessions = await createRecurringSessions(
+          task.title,
+          task.weeklyTarget,
+          task.plannedDays,
+          { projectId: task.projectId ?? undefined, columnId: task.columnId ?? undefined }
+        )
+        setSessions((prev) => [...sessions, ...prev])
+      } else {
+        const s = await createSession(task.title, {
+          projectId: task.projectId ?? undefined,
+          columnId: task.columnId ?? undefined,
+        })
+        if (task.dueDate) updateSessionSchedule(s.id, task.dueDate, undefined)
+        setSessions((prev) => [{ ...s, dueDate: task.dueDate ?? undefined }, ...prev])
+      }
     }
   }, [])
 
