@@ -21,7 +21,10 @@ Every question spawns a new card, streamed token-by-token from Gemini 2.5 Flash.
 The AI decides the response format based on content. Multi-dimensional topics automatically expand into a **branching mind map**. Focused or follow-up questions stay as a **single connected card**, forming a linear chain. Both patterns coexist naturally on the same canvas.
 
 ### Board Assistant (AI Chat Panel)
-A sliding chat panel on the Kanban board powered by Gemini 2.5 Flash. Paste a todo list and the AI parses tasks, infers project/column/dueDate, shows a preview, and creates cards in one click. Also supports general Q&A about your tasks. Toggle with the **✦ AI** button — the panel pushes the board left, all columns remain visible.
+A sliding chat panel available on both the **By Focus** and **By Time** views, powered by Gemini 2.5 Flash. Paste a todo list and the AI parses tasks, infers project/column/dueDate, shows a preview, and creates cards in one click. Also supports general Q&A about your tasks. Toggle with the **✦ AI** button — the panel pushes the board left, all columns remain visible.
+
+### Recurring / Count-Based Tasks
+Tasks with a weekly count goal (e.g. "go to gym 3×/week"). Tell the Board Assistant something like *"去gym，每周3次，暂定135"* and it creates three cards placed on Mon/Wed/Fri. All cards in the group share a progress badge — **1/3次, 2/3次…** — so you always know where you stand. If a card's planned date passes without being ticked, the card's left border turns orange and shows a **· 逾期** label. No auto-shuffling — you move cards manually if needed.
 
 ### My Note Cards
 Drop freeform sticky notes anywhere on the canvas. Notes support Markdown rendering and can also be used as branch points to query the AI in context.
@@ -44,14 +47,14 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 
 | Layer | Technology |
 |---|---|
-| Framework | Next.js 15 (App Router) |
+| Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Canvas | React Flow (`@xyflow/react`) |
 | AI (canvas) | Gemini 2.5 Flash (streaming) |
 | AI (board) | Gemini 2.5 Flash (streaming, Board Assistant) |
-| Styling | Tailwind CSS |
-| Fonts | Lora (serif) + JetBrains Mono |
-| Persistence | Browser localStorage |
+| Styling | Tailwind CSS 4 |
+| Fonts | Lora (serif) + JetBrains Mono + Inter |
+| Persistence | Supabase (PostgreSQL) |
 
 ---
 
@@ -59,13 +62,14 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 
 ### Prerequisites
 - Node.js 18+
-- A [Groq](https://console.groq.com) API key (free, no credit card required)
+- A [Google AI Studio](https://aistudio.google.com) API key (Gemini)
+- A [Supabase](https://supabase.com) project
 
 ### Installation
 
 ```bash
-git clone https://github.com/emma-devhub/thinkflow.git
-cd thinkflow
+git clone https://github.com/emma-devhub/thinkflow-board.git
+cd thinkflow-board
 npm install
 ```
 
@@ -74,7 +78,53 @@ npm install
 Create a `.env.local` file in the project root:
 
 ```env
-GROQ_API_KEY=your_groq_api_key_here
+GEMINI_API_KEY=your_gemini_api_key_here
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
+
+### Database Setup
+
+Run the following SQL in your Supabase SQL Editor:
+
+```sql
+create table sessions (
+  id text primary key,
+  title text,
+  created_at bigint,
+  updated_at bigint,
+  status text default 'todo',
+  project_id text,
+  column_id text,
+  checked boolean default false,
+  due_date text,
+  estimated_mins integer,
+  week_order integer,
+  recurring_group_id text,
+  weekly_target integer
+);
+
+create table canvas_states (
+  session_id text primary key,
+  nodes jsonb,
+  edges jsonb,
+  layout_dir text,
+  updated_at bigint
+);
+
+create table projects (
+  id text primary key,
+  title text,
+  color text,
+  created_at bigint
+);
+
+create table directions (
+  id text primary key,
+  label text,
+  color text,
+  sort_order integer
+);
 ```
 
 ### Run

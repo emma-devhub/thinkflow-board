@@ -12,8 +12,8 @@ Internal reference for developers picking up this codebase.
 | Sister repo | `emma-devhub/thinkflow` — canvas-only version (no Kanban) |
 | AI (canvas) | Gemini 2.5 Flash via `/api/chat` |
 | AI (board assistant) | Gemini 2.5 Flash via `/api/board-chat` |
-| Storage | Browser `localStorage` only — no database |
-| Deploy target | Vercel (Next.js 15 App Router, Node.js streaming) |
+| Storage | Supabase (PostgreSQL) — migrated from localStorage 2026-04-04 |
+| Deploy target | Vercel (Next.js 16 App Router, Node.js streaming) |
 
 ---
 
@@ -68,13 +68,15 @@ interface SessionMeta {
   title: string
   createdAt: number
   updatedAt: number
-  status: TaskStatus       // 'todo' | 'inprogress' | 'done'
+  status: TaskStatus         // 'todo' | 'inprogress' | 'done'
   projectId?: string
-  columnId?: string        // maps to Direction.id in Kanban
-  checked?: boolean        // task completion state
-  dueDate?: string         // 'YYYY-MM-DD' for By Time view
-  weekOrder?: number       // sort order within a day column
-  estimatedMins?: number   // time estimate shown on week cards
+  columnId?: string          // maps to Direction.id in Kanban
+  checked?: boolean          // task completion state
+  dueDate?: string           // 'YYYY-MM-DD' for By Time view
+  weekOrder?: number         // sort order within a day column
+  estimatedMins?: number     // time estimate (UI hidden, kept for future)
+  recurringGroupId?: string  // shared ID across all instances of a recurring task
+  weeklyTarget?: number      // total times per week (e.g. 3 for "gym 3×/week")
 }
 ```
 
@@ -85,9 +87,20 @@ interface ParsedTask {
   title: string
   projectId: string | null
   columnId: string | null
-  dueDate: string | null   // 'YYYY-MM-DD'
+  dueDate: string | null      // 'YYYY-MM-DD' — used for one-off tasks
+  weeklyTarget?: number       // if set, this is a recurring task
+  plannedDays?: string[]      // YYYY-MM-DD list, length = weeklyTarget
 }
 ```
+
+### Recurring Task Group
+
+When `weeklyTarget` is set on a `ParsedTask`, `handleCreateTasks` calls `createRecurringSessions()` which:
+- Generates a shared `recurringGroupId` (`rg-{timestamp}-{random}`)
+- Creates `weeklyTarget` session rows, one per date in `plannedDays`
+- All rows get the same `recurringGroupId` and `weeklyTarget`
+
+Progress badge: `WeekBoard` computes `done/total` by counting checked sessions with the same `recurringGroupId` across **all** sessions (not just visible ones). Overdue = `!checked && dueDate < today` → orange left border + `· 逾期` label.
 
 ---
 
@@ -204,9 +217,18 @@ GEMINI_API_KEY=...   # from Google AI Studio
 
 ---
 
-## Changelog (2026-04-04)
+## Changelog
+
+### 2026-04-05
+
+- **Recurring / count-based tasks**: New task type with `recurringGroupId` + `weeklyTarget`. Board Assistant parses "3次, 暂定135" → creates N cards on planned days. Cards show `(X/Y次)` progress badge; overdue unchecked cards get orange border + `· 逾期`. No auto-rollover by design.
+- **By Time AI panel fixes**: AI button moved to far right (matching By Focus). Chat input now anchors to bottom (`display:flex` on wrapper). Panel now pushes columns left instead of overlapping (`minWidth:0` on columns div).
+- **Supabase schema**: Added `recurring_group_id text` and `weekly_target integer` columns to `sessions` table.
+
+### 2026-04-04
 
 - **Board Assistant**: Added sliding AI chat panel to Kanban board (`BoardChatPanel.tsx` + `/api/board-chat`). Paste todos → AI parses → preview → create cards. Panel pushes board left with elastic column widths.
 - **By Time layout**: Unscheduled column fixed left; day columns scroll independently and auto-scroll to today on mount.
 - **Canvas mindmap**: Fixed LR slot spacing 310→360px to prevent card overlap.
 - **Adaptive AI format**: Removed forced `##` structure from system prompt. AI now chooses tree vs. single-card format based on content.
+- **Supabase migration**: All data moved from `localStorage` to Supabase PostgreSQL.
