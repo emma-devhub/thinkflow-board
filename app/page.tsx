@@ -25,17 +25,23 @@ import {
   updateProjectTitle,
 } from '@/lib/projects'
 import type { SessionMeta, Project, ParsedTask } from '@/types'
+import { useIsMobile } from '@/lib/useIsMobile'
+
+// Synchronous mobile check for initial state (runs only on client)
+const initMobile = () => typeof window !== 'undefined' && window.innerWidth < 768
 
 const ThinkCanvas = dynamic(() => import('@/components/ThinkCanvas'), { ssr: false })
 
 type View = 'kanban' | 'canvas'
 
 export default function Home() {
+  const isMobile = useIsMobile()
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [projects, setProjects] = useState<Project[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
-  const [view, setView] = useState<View>('canvas')
-  const [boardView, setBoardView] = useState<'domain' | 'week'>('domain')
+  // On mobile: default to kanban+week; on desktop: default to canvas
+  const [view, setView] = useState<View>(() => initMobile() ? 'kanban' : 'canvas')
+  const [boardView, setBoardView] = useState<'domain' | 'week'>(() => initMobile() ? 'week' : 'domain')
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
@@ -148,14 +154,16 @@ export default function Home() {
       {view === 'kanban' ? (
         /* ── Project board (independent page) ── */
         <div style={{ display: 'flex', width: '100%', height: '100%' }}>
-          <ProjectRail
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onSelectProject={setSelectedProjectId}
-            onCreateProject={handleCreateProject}
-            onDeleteProject={handleDeleteProject}
-            onRenameProject={handleRenameProject}
-          />
+          {!isMobile && (
+            <ProjectRail
+              projects={projects}
+              selectedProjectId={selectedProjectId}
+              onSelectProject={setSelectedProjectId}
+              onCreateProject={handleCreateProject}
+              onDeleteProject={handleDeleteProject}
+              onRenameProject={handleRenameProject}
+            />
+          )}
           {boardView === 'domain' ? (
             <KanbanBoard
               sessions={sessions}

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, TaskStatus, ParsedTask } from '@/types'
 import BoardChatPanel from './BoardChatPanel'
 import { type Direction, loadDirections, saveDirections, EXTRA_COLORS } from '@/lib/directions'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Props {
   sessions: SessionMeta[]
@@ -31,6 +32,7 @@ export default function KanbanBoard({
   onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
   onCreateTasks, boardView, onBoardViewChange,
 }: Props) {
+  const isMobile = useIsMobile()
   const [dirs, setDirs] = useState<Direction[]>([])
   useEffect(() => { loadDirections().then(setDirs) }, [])
   const [isChatOpen, setIsChatOpen] = useState(false)
@@ -166,8 +168,8 @@ export default function KanbanBoard({
         </div>
       </div>
 
-      {/* Columns */}
-      <div style={{ flex: 1, display: 'flex', gap: 16, padding: '20px 24px', overflowX: 'hidden', overflowY: 'hidden' }}>
+      {/* Columns — desktop: horizontal row; mobile: vertical stack */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: 'hidden', overflowY: isMobile ? 'auto' : 'hidden' }}>
         {dirs.map((dir) => {
           const dirSessions = visibleSessions.filter((s) => sessionDirId(s) === dir.id)
           const isDragOver = dragOverDirId === dir.id
@@ -178,7 +180,7 @@ export default function KanbanBoard({
               onDragLeave={() => setDragOverDirId(null)}
               onDrop={() => handleDrop(dir.id)}
               style={{
-                flex: 1, minWidth: 160, display: 'flex', flexDirection: 'column', gap: 10,
+                flex: isMobile ? undefined : 1, minWidth: isMobile ? undefined : 160, width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 10,
                 background: isDragOver ? 'rgba(0,0,0,0.03)' : 'transparent',
                 borderRadius: 10, transition: 'background 100ms',
               }}
@@ -198,7 +200,7 @@ export default function KanbanBoard({
               />
 
               {/* Cards */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
+              <div style={{ flex: isMobile ? undefined : 1, overflowY: isMobile ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
                 {dirSessions.map((s) => {
                   const proj = s.projectId ? projectMap[s.projectId] : null
                   return (

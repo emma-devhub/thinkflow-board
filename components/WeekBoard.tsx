@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, ParsedTask } from '@/types'
 import BoardChatPanel from './BoardChatPanel'
+import { useIsMobile } from '@/lib/useIsMobile'
 
 interface Props {
   sessions: SessionMeta[]
@@ -54,21 +55,26 @@ export default function WeekBoard({
   onSchedule, onReorderWeek, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
   onCreateTasks, boardView, onBoardViewChange,
 }: Props) {
+  const isMobile = useIsMobile()
   const weekDays = getWeekDays()
   const [isChatOpen, setIsChatOpen] = useState(false)
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const todayColRef = useRef<HTMLDivElement>(null)
 
-  // Auto-scroll to today on mount
+  // Scroll to today — horizontal on desktop, vertical on mobile
   useEffect(() => {
-    const container = scrollContainerRef.current
-    const todayEl = todayColRef.current
-    if (!container || !todayEl) return
-    const containerRect = container.getBoundingClientRect()
-    const todayRect = todayEl.getBoundingClientRect()
-    container.scrollLeft += todayRect.left - containerRect.left - 24
-  }, [])
+    if (isMobile) {
+      setTimeout(() => todayColRef.current?.scrollIntoView({ block: 'start' }), 80)
+    } else {
+      const container = scrollContainerRef.current
+      const todayEl = todayColRef.current
+      if (!container || !todayEl) return
+      const containerRect = container.getBoundingClientRect()
+      const todayRect = todayEl.getBoundingClientRect()
+      container.scrollLeft += todayRect.left - containerRect.left - 24
+    }
+  }, [isMobile])
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
   const [dragOverCardPos, setDragOverCardPos] = useState<'above' | 'below'>('below')
@@ -201,11 +207,11 @@ export default function WeekBoard({
       {/* Body: columns + AI chat panel */}
       <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
 
-      {/* Columns */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+      {/* Columns — desktop: horizontal row, mobile: vertical stack */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', overflow: isMobile ? 'auto' : 'hidden' }}>
 
-      {/* Unscheduled — fixed left, never scrolls */}
-      <div style={{ padding: '20px 0 20px 24px', flexShrink: 0, display: 'flex' }}>
+      {/* Unscheduled — desktop: fixed left; mobile: first in vertical stack */}
+      <div style={isMobile ? { padding: '16px 16px 0' } : { padding: '20px 0 20px 24px', flexShrink: 0, display: 'flex' }}>
         {columns.filter((col) => col.key === 'unscheduled').map((col) => {
           const colSessions = visibleSessions
             .filter((s) => getColKey(s) === col.key)
@@ -221,7 +227,7 @@ export default function WeekBoard({
               }}
               onDrop={() => handleDrop(col.key)}
               style={{
-                width: 220,
+                width: isMobile ? '100%' : 220,
                 flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
@@ -257,7 +263,7 @@ export default function WeekBoard({
               </div>
 
               {/* Cards */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ flex: isMobile ? undefined : 1, overflowY: isMobile ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {colSessions.map((s) => {
                   const proj = s.projectId ? projectMap[s.projectId] : null
                   const isTarget = dragOverCardId === s.id
@@ -339,8 +345,14 @@ export default function WeekBoard({
         })}
       </div>
 
-      {/* Day columns — scrollable, auto-scrolls to today */}
-      <div ref={scrollContainerRef} style={{ flex: 1, display: 'flex', gap: 12, padding: '20px 24px 20px 12px', overflowX: 'auto', overflowY: 'hidden' }}>
+      {/* Day columns — desktop: horizontal scroll; mobile: vertical stack */}
+      <div
+        ref={isMobile ? undefined : scrollContainerRef}
+        style={isMobile
+          ? { display: 'flex', flexDirection: 'column', gap: 12, padding: '12px 16px 24px' }
+          : { flex: 1, display: 'flex', gap: 12, padding: '20px 24px 20px 12px', overflowX: 'auto', overflowY: 'hidden' }
+        }
+      >
         {columns.filter((col) => col.key !== 'unscheduled').map((col) => {
           const colSessions = visibleSessions
             .filter((s) => getColKey(s) === col.key)
@@ -357,7 +369,7 @@ export default function WeekBoard({
               }}
               onDrop={() => handleDrop(col.key)}
               style={{
-                width: 200,
+                width: isMobile ? '100%' : 200,
                 flexShrink: 0,
                 display: 'flex',
                 flexDirection: 'column',
@@ -393,7 +405,7 @@ export default function WeekBoard({
               </div>
 
               {/* Cards */}
-              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <div style={{ flex: isMobile ? undefined : 1, overflowY: isMobile ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {colSessions.map((s) => {
                   const proj = s.projectId ? projectMap[s.projectId] : null
                   const isTarget = dragOverCardId === s.id
@@ -508,8 +520,8 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
-  const [editingTime, setEditingTime] = useState(false)
-  const [timeDraft, setTimeDraft] = useState(String(session.estimatedMins ?? ''))
+  // const [editingTime, setEditingTime] = useState(false)
+  // const [timeDraft, setTimeDraft] = useState(String(session.estimatedMins ?? ''))
 
   const accentColor = project?.color ?? '#ddd'
   const checked = !!session.checked
@@ -521,15 +533,15 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
     setEditing(false)
   }
 
-  const commitTime = () => {
-    const n = parseInt(timeDraft)
-    onUpdateTime(isNaN(n) || n <= 0 ? undefined : n)
-    setEditingTime(false)
-  }
+  // const commitTime = () => {
+  //   const n = parseInt(timeDraft)
+  //   onUpdateTime(isNaN(n) || n <= 0 ? undefined : n)
+  //   setEditingTime(false)
+  // }
 
   return (
     <div
-      draggable={!editing && !editingTime}
+      draggable={!editing}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onMouseEnter={() => setHovered(true)}
@@ -539,8 +551,8 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
         border: '1px solid #e8e5e0',
         borderLeft: `4px solid ${accentColor}`,
         boxShadow: hovered ? '0 3px 10px rgba(0,0,0,0.09)' : '0 1px 2px rgba(0,0,0,0.04)',
-        cursor: editing || editingTime ? 'default' : 'grab',
-        transform: hovered && !editing && !editingTime ? 'translateY(-1px)' : 'none',
+        cursor: editing ? 'default' : 'grab',
+        transform: hovered && !editing ? 'translateY(-1px)' : 'none',
         transition: 'box-shadow 120ms, transform 120ms',
         opacity: checked ? 0.65 : 1,
         padding: '8px 10px',
@@ -597,7 +609,7 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
           </span>
         )}
 
-        {hovered && !editing && !editingTime && (
+        {hovered && !editing && (
           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
             <button
               onClick={(e) => { e.stopPropagation(); onOpenCanvas() }}
@@ -616,7 +628,7 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
         )}
       </div>
 
-      {/* Estimated time row */}
+      {/* Estimated time row — temporarily commented out
       <div style={{ marginTop: 5, paddingLeft: 23, display: 'flex', alignItems: 'center', gap: 4 }}>
         <span style={{ fontSize: 10, color: '#bbb' }}>⏱</span>
         {editingTime ? (
@@ -652,6 +664,7 @@ function WeekCard({ session, project, onOpenCanvas, onDelete, onToggleChecked, o
           </span>
         )}
       </div>
+      */}
     </div>
   )
 }
