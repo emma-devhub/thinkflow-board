@@ -370,7 +370,7 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
 
       {/* Input */}
       <div style={{
-        padding: '10px 12px 14px',
+        padding: '10px 12px 72px',
         borderTop: '1px solid #e8e5e0',
         flexShrink: 0,
         background: '#faf9f7',
