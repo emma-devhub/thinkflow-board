@@ -36,6 +36,18 @@ export default function KanbanBoard({
   const isMobile = useIsMobile()
   const [dirs, setDirs] = useState<Direction[]>([])
   useEffect(() => { loadDirections().then(setDirs) }, [])
+
+  // Auto-scroll past empty 未分类 column on load
+  useEffect(() => {
+    if (isMobile || !scrollRef.current || dirs.length === 0) return
+    const dirIds = new Set(dirs.map((d) => d.id))
+    const unclassifiedCount = visibleSessions.filter((s) => !dirIds.has(sessionDirId(s))).length
+    if (unclassifiedCount === 0) {
+      // Scroll right by one column width + gap
+      scrollRef.current.scrollTo({ left: 236, behavior: 'smooth' })
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dirs.length])
   const [addingDirId, setAddingDirId] = useState<string | null>(null)
   const [addTitle, setAddTitle] = useState('')
   const [editingDirId, setEditingDirId] = useState<string | null>(null)
@@ -44,6 +56,7 @@ export default function KanbanBoard({
   const [newDirTitle, setNewDirTitle] = useState('')
   const [dragOverDirId, setDragOverDirId] = useState<string | null>(null)
   const dragId = useRef<string | null>(null)
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   const thisMonday = (() => {
     const d = new Date(); d.setHours(0, 0, 0, 0)
@@ -177,20 +190,20 @@ export default function KanbanBoard({
         </div>
       </div>
 
-      {/* Columns — desktop: horizontal row; mobile: vertical stack */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: 'hidden', overflowY: isMobile ? 'auto' : 'hidden' }}>
+      {/* Columns — desktop: horizontal scroll row; mobile: vertical stack */}
+      <div ref={scrollRef} style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: isMobile ? 'hidden' : 'auto', overflowY: isMobile ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
         {/* 未分类 column — always visible, shows tasks with no matching focus */}
         {(() => {
           const dirIds = new Set(dirs.map((d) => d.id))
           const unclassified = visibleSessions.filter((s) => !dirIds.has(sessionDirId(s)))
           const isAdding = addingDirId === '__unclassified__'
           return (
-            <div style={{ flex: isMobile ? undefined : 1, minWidth: isMobile ? undefined : 160, width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ width: isMobile ? '100%' : 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, paddingBottom: 8, borderBottom: '1px dashed #ccc' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#aaa' }}>未分类</span>
                 <span style={{ marginLeft: 'auto', fontSize: 10, background: '#e5e3df', color: '#999', padding: '1px 5px', borderRadius: 6 }}>{unclassified.length}</span>
               </div>
-              <div style={{ flex: isMobile ? undefined : 1, overflowY: isMobile ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
                 {unclassified.map((s) => {
                   const proj = s.projectId ? projects.find((p) => p.id === s.projectId) : null
                   return (
@@ -242,7 +255,7 @@ export default function KanbanBoard({
               onDragLeave={() => setDragOverDirId(null)}
               onDrop={() => handleDrop(dir.id)}
               style={{
-                flex: isMobile ? undefined : 1, minWidth: isMobile ? undefined : 160, width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 10,
+                width: isMobile ? '100%' : 220, flexShrink: 0, display: 'flex', flexDirection: 'column', gap: 10,
                 background: isDragOver ? 'rgba(0,0,0,0.03)' : 'transparent',
                 borderRadius: 10, transition: 'background 100ms',
               }}
@@ -262,7 +275,7 @@ export default function KanbanBoard({
               />
 
               {/* Cards */}
-              <div style={{ flex: isMobile ? undefined : 1, overflowY: isMobile ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
+              <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
                 {dirSessions.map((s) => {
                   const proj = s.projectId ? projectMap[s.projectId] : null
                   return (
