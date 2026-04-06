@@ -188,8 +188,9 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
     }}>
       {/* Header */}
       <div style={{
-        padding: '14px 16px 12px',
-        borderBottom: '1px solid #e8e5e0',
+        padding: '18px 24px 14px',
+        borderBottom: '1px solid #e0ddd9',
+        background: '#f0efed',
         display: 'flex',
         alignItems: 'center',
         gap: 8,
