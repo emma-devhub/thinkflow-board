@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, ParsedTask } from '@/types'
 import { useIsMobile } from '@/lib/useIsMobile'
-import { loadDirections, type Direction } from '@/lib/directions'
+import type { Direction } from '@/lib/directions'
 
 interface Props {
   sessions: SessionMeta[]
@@ -21,6 +21,7 @@ interface Props {
   onBoardViewChange: (v: 'domain' | 'week') => void
   isChatOpen: boolean
   onToggleChatOpen: () => void
+  dirs: Direction[]
 }
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
@@ -66,17 +67,14 @@ function getRecurringProgress(
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
   onSchedule, onReorderWeek, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
-  onCreateTasks, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen,
+  onCreateTasks, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen, dirs,
 }: Props) {
   const isMobile = useIsMobile()
   const weekDays = getWeekDays()
   const today = localDateStr(new Date())
-  const [dirs, setDirs] = useState<Direction[]>([])
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const todayColRef = useRef<HTMLDivElement>(null)
-
-  useEffect(() => { loadDirections().then(setDirs) }, [])
 
   // Scroll to today — horizontal on desktop, vertical on mobile
   useEffect(() => {

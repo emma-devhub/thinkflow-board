@@ -13,6 +13,9 @@ export async function POST(req: NextRequest) {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) return NextResponse.json({ projectId: null, columnId: null })
 
+  // Extract any @mentions from title as strong hints
+  const mentionHints = (title.match(/@\S+/g) ?? []).map((m) => m.slice(1).toLowerCase())
+
   const prompt = `You are a task classifier. Given a task title, pick the best matching project and focus area from the provided lists.
 
 Task: "${title}"
@@ -23,11 +26,10 @@ ${projects.map((p) => `- "${p.title}" (id: ${p.id})`).join('\n')}
 Focus areas:
 ${dirs.map((d) => `- "${d.label}" (id: ${d.id})`).join('\n')}
 
-Respond with ONLY a JSON object, no explanation:
+${mentionHints.length > 0 ? `IMPORTANT: The task contains @mention hints: ${mentionHints.join(', ')}. Try to match these hints against the project/focus lists first (case-insensitive). Only fall back to semantic matching if no hint matches.\n` : ''}Respond with ONLY a JSON object, no explanation:
 {"projectId": "<id or null>", "columnId": "<id or null>"}
 
 Rules:
-- Match based on semantic relevance, not just keywords
 - Use null if no good match exists
 - projectId and columnId are independent — either or both can be null`
 

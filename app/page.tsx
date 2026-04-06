@@ -239,6 +239,7 @@ export default function Home() {
               onBoardViewChange={setBoardView}
               isChatOpen={isChatOpen}
               onToggleChatOpen={() => setIsChatOpen((v) => !v)}
+              dirs={dirs}
             />
           )}
 
