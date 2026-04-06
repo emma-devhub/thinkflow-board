@@ -48,6 +48,7 @@ export default function ProjectRail({
       width: isOpen ? 260 : 48,
       transition: 'width 200ms ease',
       background: 'hsl(0, 0%, 98%)',
+      borderRight: '1px solid hsl(0, 0%, 90%)',
       display: 'flex',
       flexDirection: 'column',
       flexShrink: 0,

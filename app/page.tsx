@@ -194,7 +194,7 @@ export default function Home() {
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {view === 'kanban' ? (
         /* ── Project board (independent page) ── */
-        <div style={{ display: 'flex', width: '100%', height: '100%', background: 'hsl(0, 0%, 98%)' }}>
+        <div style={{ display: 'flex', width: '100%', height: '100%', background: '#faf9f7' }}>
           {!isMobile && (
             <ProjectRail
               projects={projects}

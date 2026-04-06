@@ -100,7 +100,8 @@ export default function KanbanBoard({
       <div style={{
         flex: 1, minWidth: 0,
         display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed',
-        borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
+        borderTopRightRadius: isChatOpen ? 12 : 0, borderBottomRightRadius: isChatOpen ? 12 : 0,
+        transition: 'border-radius 200ms ease',
       }}>
       {/* Header */}
       <div style={{

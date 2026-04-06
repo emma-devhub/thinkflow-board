@@ -201,7 +201,7 @@ export default function WeekBoard({
   ]
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed', borderTopLeftRadius: 12, borderBottomLeftRadius: 12 }}>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed', borderTopRightRadius: isChatOpen ? 12 : 0, borderBottomRightRadius: isChatOpen ? 12 : 0, transition: 'border-radius 200ms ease' }}>
       {/* Header */}
       <div style={{
         padding: '18px 24px 14px', display: 'flex', alignItems: 'center', gap: 8,
