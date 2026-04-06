@@ -12,6 +12,8 @@ Internal reference for developers picking up this codebase.
 | Sister repo | `emma-devhub/thinkflow` — canvas-only version (no Kanban) |
 | AI (canvas) | Gemini 2.5 Flash via `/api/chat` |
 | AI (board assistant) | Gemini 2.5 Flash via `/api/board-chat` |
+| AI (classify) | Gemini 2.5 Flash via `/api/classify-task` |
+| AI (memory distill) | Gemini 2.5 Flash via `/api/distill-memory` |
 | Storage | Supabase (PostgreSQL) — migrated from localStorage 2026-04-04 |
 | Deploy target | Vercel (Next.js 16 App Router, Node.js streaming) |
 
@@ -21,44 +23,107 @@ Internal reference for developers picking up this codebase.
 
 ```
 app/
-  page.tsx                  — Root: owns all state, routes between canvas and board views
-  api/chat/route.ts         — POST /api/chat: Gemini SSE → plain text stream (canvas AI)
-  api/board-chat/route.ts   — POST /api/board-chat: Gemini streaming (Board Assistant)
-  globals.css               — Global styles + keyframe animations
+  page.tsx                      — Root: owns all state, routes between canvas and board views
+  api/chat/route.ts             — POST /api/chat: Gemini SSE → plain text stream (canvas AI)
+  api/board-chat/route.ts       — POST /api/board-chat: Gemini streaming (Board Assistant)
+  api/classify-task/route.ts    — POST /api/classify-task: auto-classify task → {projectId, columnId}
+  api/distill-memory/route.ts   — POST /api/distill-memory: summarise chat history into memory.md
+  globals.css                   — Global styles + keyframe animations
 
 components/
-  ThinkCanvas.tsx           — React Flow canvas: nodes, edges, branching, mindmap layout
-  ResearchNode.tsx          — Card UI for seed / response / note node types
-  DeletableEdge.tsx         — SVG edge with hover-to-delete button at midpoint
-  ExpandModal.tsx           — Full-screen content overlay (Escape to close)
-  Sidebar.tsx               — Collapsible session list (canvas view)
-  KanbanBoard.tsx           — Kanban board with drag-and-drop columns + Board Assistant panel
-  WeekBoard.tsx             — "By Time" week view with day columns and unscheduled column
-  ProjectRail.tsx           — Collapsible project sidebar
-  BoardChatPanel.tsx        — Board Assistant chat UI (Gemini-powered, streaming)
+  ThinkCanvas.tsx       — React Flow canvas: nodes, edges, branching, mindmap layout
+  ResearchNode.tsx      — Card UI for seed / response / note node types
+  DeletableEdge.tsx     — SVG edge with hover-to-delete button at midpoint
+  ExpandModal.tsx       — Full-screen content overlay (Escape to close)
+  Sidebar.tsx           — Collapsible session list (canvas view, only hasCanvas sessions)
+  KanbanBoard.tsx       — "By Focus" kanban with horizontal scroll + Board Assistant toggle
+  WeekBoard.tsx         — "By Time" week view with day columns and unscheduled column
+  ProjectRail.tsx       — Collapsible project sidebar (desktop only)
+  BoardChatPanel.tsx    — Board Assistant chat UI (shared between both views, persists history)
 
 lib/
-  sessions.ts               — CRUD helpers for localStorage session management
-  projects.ts               — Project CRUD helpers
+  sessions.ts   — Supabase CRUD for sessions
+  projects.ts   — Supabase CRUD for projects
+  directions.ts — Supabase CRUD for focus columns (directions)
+  canvas.ts     — Supabase CRUD for canvas_states
+  memory.ts     — Supabase CRUD for chat_messages + user_memory
+  supabase.ts   — Supabase client singleton
 
 types/
-  index.ts                  — All TypeScript interfaces
+  index.ts      — All TypeScript interfaces
+```
+
+---
+
+## Supabase Schema
+
+### `sessions`
+
+```sql
+create table sessions (
+  id text primary key,
+  title text,
+  created_at bigint,
+  updated_at bigint,
+  status text default 'todo',
+  project_id text,
+  column_id text,
+  checked boolean default false,
+  checked_at bigint,               -- ms timestamp when checked=true was last set
+  due_date text,
+  estimated_mins integer,
+  week_order integer,
+  recurring_group_id text,
+  weekly_target integer,
+  has_canvas boolean default false  -- true once user has explicitly opened canvas for this card
+);
+```
+
+### `canvas_states`
+
+```sql
+create table canvas_states (
+  session_id text primary key,
+  nodes jsonb,
+  edges jsonb,
+  layout_dir text,
+  updated_at bigint
+);
+```
+
+### `projects` / `directions`
+
+```sql
+create table projects (id text primary key, title text, color text, created_at bigint);
+create table directions (id text primary key, label text, color text, sort_order integer);
+```
+
+### `chat_messages`
+
+```sql
+create table chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  tasks jsonb,
+  created_at timestamptz default now()
+);
+```
+
+### `user_memory`
+
+```sql
+create table user_memory (
+  id integer primary key default 1,
+  content text not null default '',
+  updated_at timestamptz default now()
+);
+insert into user_memory (id, content) values (1, '') on conflict (id) do nothing;
 ```
 
 ---
 
 ## Data Model
-
-### localStorage Keys
-
-| Key | Content |
-|---|---|
-| `thinkflow-sessions` | `SessionMeta[]` sorted by `updatedAt` desc |
-| `thinkflow-current` | current session ID string |
-| `thinkflow-canvas-{id}` | `{ nodes: Node[], edges: Edge[] }` |
-| `thinkflow-canvas-{id}:dir` | `'LR'` or `'TB'` |
-| `thinkflow-projects` | `Project[]` |
-| `thinkflow-directions` | `Direction[]` — Kanban column definitions |
 
 ### SessionMeta
 
@@ -70,13 +135,15 @@ interface SessionMeta {
   updatedAt: number
   status: TaskStatus         // 'todo' | 'inprogress' | 'done'
   projectId?: string
-  columnId?: string          // maps to Direction.id in Kanban
-  checked?: boolean          // task completion state
-  dueDate?: string           // 'YYYY-MM-DD' for By Time view
+  columnId?: string          // maps to Direction.id
+  checked?: boolean
+  checkedAt?: number         // ms timestamp of last check — used for pre-week filter
+  dueDate?: string           // 'YYYY-MM-DD'
   weekOrder?: number         // sort order within a day column
-  estimatedMins?: number     // time estimate (UI hidden, kept for future)
-  recurringGroupId?: string  // shared ID across all instances of a recurring task
-  weeklyTarget?: number      // total times per week (e.g. 3 for "gym 3×/week")
+  estimatedMins?: number
+  recurringGroupId?: string
+  weeklyTarget?: number
+  hasCanvas?: boolean        // true once canvas was opened for this card
 }
 ```
 
@@ -87,20 +154,11 @@ interface ParsedTask {
   title: string
   projectId: string | null
   columnId: string | null
-  dueDate: string | null      // 'YYYY-MM-DD' — used for one-off tasks
-  weeklyTarget?: number       // if set, this is a recurring task
-  plannedDays?: string[]      // YYYY-MM-DD list, length = weeklyTarget
+  dueDate: string | null
+  weeklyTarget?: number
+  plannedDays?: string[]     // length = weeklyTarget
 }
 ```
-
-### Recurring Task Group
-
-When `weeklyTarget` is set on a `ParsedTask`, `handleCreateTasks` calls `createRecurringSessions()` which:
-- Generates a shared `recurringGroupId` (`rg-{timestamp}-{random}`)
-- Creates `weeklyTarget` session rows, one per date in `plannedDays`
-- All rows get the same `recurringGroupId` and `weeklyTarget`
-
-Progress badge: `WeekBoard` computes `done/total` by counting checked sessions with the same `recurringGroupId` across **all** sessions (not just visible ones). Overdue = `!checked && dueDate < today` → orange left border + `· 逾期` label.
 
 ---
 
@@ -109,126 +167,159 @@ Progress badge: `WeekBoard` computes `done/total` by counting checked sessions w
 ### 1. Board Assistant — Task Creation
 
 ```
-user pastes todo list → BoardChatPanel sends to /api/board-chat
+user pastes todo list → BoardChatPanel sends to /api/board-chat (with memory in system prompt)
   → Gemini parses tasks, infers project/column/dueDate
   → response streams with <tasks>[JSON]</tasks> block at end
   → while streaming: hide <tasks> block from display
   → on stream end: parseTasksBlock() extracts ParsedTask[]
   → shows preview cards with project/column/date tags
   → user clicks "Add N tasks" → onCreateTasks(tasks) callback
-      → createSession(title, {projectId, columnId})
-      → updateSessionSchedule(id, dueDate) if date present
+  → messages saved to chat_messages table (fire-and-forget)
+  → every 10 user messages: /api/distill-memory updates user_memory (background)
 ```
 
-### 2. Canvas — Adaptive Format (tree or chain)
+### 2. Board Assistant Memory
 
 ```
-stream ends → parseMarkdownSections(content)
-  → if ≥2 ## sections: expandToMindmap() → tree layout
-  → else: single node stays as card → forms linear chain
+On panel mount:
+  loadChatHistory(80)  → restore up to 80 messages from chat_messages table
+  loadMemory()         → load user_memory.content into memoryRef
+
+Each conversation turn:
+  memory sent in every /api/board-chat request (system prompt injection)
+  messages saved to DB after stream ends
+
+Every 10th user message:
+  POST /api/distill-memory { messages: last-20, currentMemory }
+  → Gemini produces updated bullet-point memory (<400 words)
+  → saved to user_memory table + memoryRef updated
 ```
 
-AI prompt (in `route.ts`) instructs the model to choose format based on content — multi-dimensional topics get `##` headers, focused answers get flowing prose.
-
-### 3. By Time View — Layout
+### 3. Canvas — On-Demand Creation
 
 ```
-WeekBoard renders two sibling areas:
-  [fixed] unscheduled column (220px, never scrolls)
-  [scrollable] day columns (Mon–Sun, 200px each, overflowX: auto)
-    → on mount: scrollContainerRef scrolls to today's column
-    → today column highlighted with blue border (#5578cc)
+Task cards created from board views have hasCanvas=false by default.
+↗ arrow shown on every card hover — gray when hasCanvas=false, blue when true.
+On first click:
+  updateSessionHasCanvas(id)  → sets has_canvas=true in DB
+  setView('canvas')
+Canvas Sidebar only shows sessions where hasCanvas=true.
+Sessions created via "New chat" in sidebar always get hasCanvas=true.
 ```
 
-### 4. Kanban Board Assistant Panel
+### 4. Auto-Classification (By Time unscheduled add)
 
 ```
-KanbanBoard renders as flex row:
-  [flex: 1] main board area (columns shrink elastically)
-  [width: 0→320, transition] BoardChatPanel wrapper
-    → opening panel: wrapper width → 320px, columns auto-shrink
-    → closing panel: wrapper width → 0px, columns auto-expand
+User adds task without @mentions → handleCreateWeekSession fires
+→ background fetch to /api/classify-task { title, projects, dirs }
+→ Gemini returns { projectId, columnId } (temperature=0)
+→ updateSessionProject / updateSessionColumn called silently
+→ card updates in place without user action
 ```
 
----
+### 5. @mention Parsing (By Time add input)
 
-## Mindmap Layout Algorithm
+```
+"fix bug @Thinkflow @Vibe Coding" → parseMentions():
+  split on '@', match each segment against projects (title) + dirs (label)
+  → { title: "fix bug", projectId: <id>, columnId: <id> }
+Unmatched @tokens stay in the title.
+```
 
-Same as `thinkflow` repo. `expandToMindmap()` in `ThinkCanvas.tsx`:
+### 6. Pre-Week Done Task Filter
 
-**LR mode** (left → right):
-- Slot spacing: 360px vertical (cards 320px tall → 40px gap)
-- L1 offset from parent: 560px right
-- L2 offset from L1: 500px right
+```
+Both KanbanBoard and WeekBoard filter:
+  sessions.filter(s => !(s.checked && (s.checkedAt ?? s.updatedAt) < thisMonday))
+Always on — no toggle. Uses checkedAt for accuracy; falls back to updatedAt for
+tasks checked before the column was added.
+```
 
-**TB mode** (top → bottom):
-- Slot spacing: 460px horizontal
-- L1 offset: 480px down; L2 offset: 440px down
+### 7. By Focus — Horizontal Scroll
+
+```
+Columns container: overflowX: 'auto', each column width: 220px, flexShrink: 0
+On mount (after dirs load): if 未分类 is empty → scrollTo({ left: 236, behavior: 'smooth' })
+  (236 = 220px column + 16px gap)
+```
 
 ---
 
 ## API Endpoints
 
-### `POST /api/chat` (canvas AI)
+### `POST /api/chat` — canvas AI
 
-```json
-Request: { "message": "string", "context": [{ "role": "user"|"model", "content": "string" }] }
-Response: 200 plain text stream | 429 rate limited | 500 key missing
+```
+Request:  { message, context: [{role, content}] }
+Response: 200 text/stream | 429 | 500
+Rate limit: 10 req/min/IP
 ```
 
-Rate limit: 10 req/min/IP.
+### `POST /api/board-chat` — Board Assistant
 
-### `POST /api/board-chat` (Board Assistant)
-
-```json
-Request: {
-  "message": "string",
-  "context": [...],
-  "projects": [{ "id", "title", "color" }],
-  "columns": [{ "id", "label" }],
-  "today": "YYYY-MM-DD"
-}
-Response: 200 plain text stream (may contain <tasks>[JSON]</tasks> at end)
+```
+Request:  { message, context, projects, columns, today, memory? }
+Response: 200 text/stream (may contain <tasks>[JSON]</tasks>)
+Rate limit: 20 req/min/IP
 ```
 
-Rate limit: 20 req/min/IP.
-Task JSON schema: `[{ title, projectId, columnId, dueDate }]`
+### `POST /api/classify-task` — background auto-classify
+
+```
+Request:  { title, projects: [{id,title}], dirs: [{id,label}] }
+Response: { projectId: string|null, columnId: string|null }
+Fire-and-forget from client. Returns nulls on any error.
+```
+
+### `POST /api/distill-memory` — memory distillation
+
+```
+Request:  { messages: [{role,content}], currentMemory: string }
+Response: { memory: string }   (updated bullet-point memory, <400 words)
+Triggered every 10 user messages from BoardChatPanel. Fire-and-forget.
+```
 
 ---
 
 ## Environment
 
 ```env
-GEMINI_API_KEY=...   # from Google AI Studio
+GEMINI_API_KEY=...                  # from Google AI Studio
+NEXT_PUBLIC_SUPABASE_URL=...
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 ```
-
----
-
-## What's Different vs `thinkflow` (sister repo)
-
-| Feature | thinkflow | thinkflow-board |
-|---|---|---|
-| Canvas AI | Groq (llama-3.3-70b) | Gemini 2.5 Flash |
-| Kanban board | ✗ | ✓ |
-| Projects | ✗ | ✓ |
-| Board Assistant | ✗ | ✓ |
-| By Time view | ✗ | ✓ |
-| `ThinkCanvas.tsx` | identical | identical |
 
 ---
 
 ## Changelog
 
+### 2026-04-06
+
+- **Board Assistant memory**: Chat history persisted in `chat_messages` table; `user_memory` table stores distilled bullet-point memory; every 10 user messages, `/api/distill-memory` updates the memory; memory injected into every board-chat system prompt.
+- **Canvas on-demand**: Cards no longer auto-populate canvas sidebar. `has_canvas` column added. `↗` arrow gray (create) → blue (open) on first click. Canvas sidebar filters to `hasCanvas=true` sessions only.
+- **`checked_at` accuracy**: New `checked_at` column set when task is checked. Pre-week filter uses `checkedAt` instead of `updatedAt` to avoid false positives from renames/moves.
+- **Hide pre-week done tasks**: Always-on filter removes tasks completed before this week's Monday. No toggle button.
+- **By Focus horizontal scroll**: Columns now scroll horizontally (220px fixed width). Auto-scrolls past empty 未分类 on load.
+- **Recurring progress denominator**: `getRecurringProgress` now uses `group.length` (actual card count) instead of `weeklyTarget` as denominator.
+- **Board Assistant header**: Matched height to main panel header (two-line: title 18px + subtitle 12px).
+- **Board Assistant input**: Textarea defaults to 3 rows / minHeight 60px.
+- **Concave sidebar corners**: Main board area has `borderTopRightRadius/borderBottomRightRadius: 12` when AI panel is open.
+
 ### 2026-04-05
 
-- **Recurring / count-based tasks**: New task type with `recurringGroupId` + `weeklyTarget`. Board Assistant parses "3次, 暂定135" → creates N cards on planned days. Cards show `(X/Y次)` progress badge; overdue unchecked cards get orange border + `· 逾期`. No auto-rollover by design.
-- **By Time AI panel fixes**: AI button moved to far right (matching By Focus). Chat input now anchors to bottom (`display:flex` on wrapper). Panel now pushes columns left instead of overlapping (`minWidth:0` on columns div).
-- **Supabase schema**: Added `recurring_group_id text` and `weekly_target integer` columns to `sessions` table.
+- **Shared AI panel**: `BoardChatPanel` lifted to `page.tsx` — single instance shared between By Focus and By Time. State (history, open/closed) persists across view switches.
+- **`@mention` parsing**: By Time unscheduled add supports `@ProjectName @FocusName` inline. Unmatched tokens stay in title.
+- **Auto-classify**: Tasks added without `@mentions` are silently classified by `/api/classify-task` in the background.
+- **未分类 column**: By Focus always shows an 未分类 column for sessions with no matching focus. Supports inline add.
+- **Mobile-responsive layout**: ProjectRail hidden on mobile; By Time is default mobile view.
+
+### 2026-04-05 (earlier)
+
+- **Recurring / count-based tasks**: `recurringGroupId` + `weeklyTarget`. Board Assistant parses "3次, 暂定135" → N cards on planned days. Cards show `(X/Y次)` progress badge; overdue = orange border + `· 逾期`.
+- **By Time AI panel**: Panel pushed columns left (flex sibling, not overlay).
 
 ### 2026-04-04
 
-- **Board Assistant**: Added sliding AI chat panel to Kanban board (`BoardChatPanel.tsx` + `/api/board-chat`). Paste todos → AI parses → preview → create cards. Panel pushes board left with elastic column widths.
-- **By Time layout**: Unscheduled column fixed left; day columns scroll independently and auto-scroll to today on mount.
-- **Canvas mindmap**: Fixed LR slot spacing 310→360px to prevent card overlap.
-- **Adaptive AI format**: Removed forced `##` structure from system prompt. AI now chooses tree vs. single-card format based on content.
+- **Board Assistant**: `BoardChatPanel.tsx` + `/api/board-chat`. Paste todos → AI parses → preview → create cards.
+- **By Time layout**: Unscheduled column fixed left; day columns auto-scroll to today.
 - **Supabase migration**: All data moved from `localStorage` to Supabase PostgreSQL.

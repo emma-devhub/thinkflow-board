@@ -1,45 +1,56 @@
 # ThinkFlow
 
-**A visual AI research tool that turns conversations into explorable mind maps.**
+**A visual AI research tool and personal task board — think in maps, plan in time.**
 
-ThinkFlow lets you start with any research topic, receive an AI-generated response as a draggable card, then branch from any card to explore sub-topics — building an infinite, visual conversation tree powered by Google Gemini.
+ThinkFlow combines an infinite AI canvas with a practical Kanban/week planner, all powered by Google Gemini.
 
 ---
 
 ## Features
 
-### Visual Research Tree
-Start a topic and watch your research grow into a branching graph. Each card lives on an infinite canvas — drag, zoom, and rearrange freely.
-
-### Multi-Session Sidebar
-Manage multiple independent research sessions. Each session persists in your browser with its own canvas state, so you can pick up exactly where you left off.
-
-### AI Response Cards
-Every question spawns a new card, streamed token-by-token from Gemini 2.5 Flash. Branch from any card to explore sub-topics with full conversation context preserved along each branch path.
+### Visual Research Canvas
+Start any topic and watch your research grow into a branching graph. Each AI response becomes a draggable card on an infinite canvas. Branch from any card to explore sub-topics, building a visual conversation tree with full context preserved along each path.
 
 ### Adaptive Format — Tree or Chain
-The AI decides the response format based on content. Multi-dimensional topics automatically expand into a **branching mind map**. Focused or follow-up questions stay as a **single connected card**, forming a linear chain. Both patterns coexist naturally on the same canvas.
-
-### Board Assistant (AI Chat Panel)
-A sliding chat panel available on both the **By Focus** and **By Time** views, powered by Gemini 2.5 Flash. Paste a todo list and the AI parses tasks, infers project/column/dueDate, shows a preview, and creates cards in one click. Also supports general Q&A about your tasks. Toggle with the **✦ AI** button — the panel pushes the board left, all columns remain visible.
-
-### Recurring / Count-Based Tasks
-Tasks with a weekly count goal (e.g. "go to gym 3×/week"). Tell the Board Assistant something like *"去gym，每周3次，暂定135"* and it creates three cards placed on Mon/Wed/Fri. All cards in the group share a progress badge — **1/3次, 2/3次…** — so you always know where you stand. If a card's planned date passes without being ticked, the card's left border turns orange and shows a **· 逾期** label. No auto-shuffling — you move cards manually if needed.
+The AI decides response format based on content. Multi-dimensional topics auto-expand into a **branching mind map**. Focused follow-ups form a **linear chain**. Both coexist naturally on the same canvas.
 
 ### My Note Cards
-Drop freeform sticky notes anywhere on the canvas. Notes support Markdown rendering and can also be used as branch points to query the AI in context.
+Drop freeform sticky notes anywhere on the canvas. Notes support Markdown and can be used as branch points for further AI queries.
 
 ### Flexible Layout
-Toggle between **Left→Right** and **Top→Bottom** tree layouts to match your thinking style.
+Toggle between **Left→Right** and **Top→Bottom** tree layouts. Deletable edges let you restructure graphs freely. Cascade delete removes a node and all descendants in one action.
 
-### Deletable Edges
-Hover any connection line to reveal a delete button — restructure your graph without losing nodes.
+---
 
-### Cascade Delete
-Remove a node and all its descendants in one action, or delete a single card while keeping the rest of the tree.
+### By Focus (Kanban Board)
+Organize tasks by focus area (custom columns). Drag cards between columns. Horizontally scrollable — auto-scrolls past empty columns on load.
 
-### Expand to Full Screen
-Click "⤢ expand" on any card to read the full response in a distraction-free overlay.
+- **未分类 column**: Always visible, catches tasks with no assigned focus. Inline add supported.
+- **Project Rail**: Filter tasks by project using the collapsible left sidebar (desktop).
+
+### By Time (Week View)
+A Mon–Sun week board showing tasks by due date, with an unscheduled column on the left.
+
+- Auto-scrolls to today's column on load.
+- Add tasks inline with `@ProjectName @FocusName` mention syntax for instant classification.
+- Tasks without mentions are **auto-classified** in the background by AI (project + focus guessed silently).
+
+### Recurring / Count-Based Tasks
+Weekly habit tracking built in. Tell the Board Assistant *"去gym，每周3次，暂定135"* and it creates three cards placed on Mon/Wed/Fri. All cards in the group share a **X/Y次** progress badge. Overdue unchecked cards show an orange left border and **· 逾期** label.
+
+### Board Assistant (AI Chat Panel)
+A sliding chat panel shared between By Focus and By Time, powered by Gemini 2.5 Flash.
+
+- **Paste a todo list** → AI parses tasks, infers project/column/due date → preview → one-click add.
+- **Persistent history**: Conversation saved to Supabase across page reloads.
+- **Memory**: Every 10 messages, the AI distills key facts about your work style and projects into a persistent memory. Future conversations start with this context — no need to re-explain.
+- Toggle with the **✦ AI** button. Panel pushes the board left; all columns remain visible.
+
+### Canvas On-Demand
+Task cards don't auto-create canvas sessions. The **↗** arrow on each card is gray until first click (creates canvas), then blue (opens it). The canvas sidebar only shows sessions you've explicitly opened — no clutter.
+
+### Smart Done-Task Filtering
+Tasks completed before the current week are automatically hidden from both board views. Tasks completed this week remain visible. Uses a dedicated `checked_at` timestamp for accuracy.
 
 ---
 
@@ -50,10 +61,8 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 | Framework | Next.js 16 (App Router) |
 | Language | TypeScript |
 | Canvas | React Flow (`@xyflow/react`) |
-| AI (canvas) | Gemini 2.5 Flash (streaming) |
-| AI (board) | Gemini 2.5 Flash (streaming, Board Assistant) |
+| AI | Gemini 2.5 Flash (streaming + JSON) |
 | Styling | Tailwind CSS 4 |
-| Fonts | Lora (serif) + JetBrains Mono + Inter |
 | Persistence | Supabase (PostgreSQL) |
 
 ---
@@ -62,8 +71,8 @@ Click "⤢ expand" on any card to read the full response in a distraction-free o
 
 ### Prerequisites
 - Node.js 18+
-- A [Google AI Studio](https://aistudio.google.com) API key (Gemini)
-- A [Supabase](https://supabase.com) project
+- [Google AI Studio](https://aistudio.google.com) API key
+- [Supabase](https://supabase.com) project
 
 ### Installation
 
@@ -73,9 +82,7 @@ cd thinkflow-board
 npm install
 ```
 
-### Environment Setup
-
-Create a `.env.local` file in the project root:
+### Environment
 
 ```env
 GEMINI_API_KEY=your_gemini_api_key_here
@@ -85,7 +92,7 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 
 ### Database Setup
 
-Run the following SQL in your Supabase SQL Editor:
+Run in Supabase SQL Editor:
 
 ```sql
 create table sessions (
@@ -97,11 +104,13 @@ create table sessions (
   project_id text,
   column_id text,
   checked boolean default false,
+  checked_at bigint,
   due_date text,
   estimated_mins integer,
   week_order integer,
   recurring_group_id text,
-  weekly_target integer
+  weekly_target integer,
+  has_canvas boolean default false
 );
 
 create table canvas_states (
@@ -125,6 +134,21 @@ create table directions (
   color text,
   sort_order integer
 );
+
+create table chat_messages (
+  id uuid primary key default gen_random_uuid(),
+  role text not null check (role in ('user', 'assistant')),
+  content text not null,
+  tasks jsonb,
+  created_at timestamptz default now()
+);
+
+create table user_memory (
+  id integer primary key default 1,
+  content text not null default '',
+  updated_at timestamptz default now()
+);
+insert into user_memory (id, content) values (1, '') on conflict (id) do nothing;
 ```
 
 ### Run
@@ -134,49 +158,6 @@ npm run dev
 ```
 
 Open [http://localhost:3000](http://localhost:3000).
-
----
-
-## Usage
-
-1. **Start a session** — Type your research topic into the center prompt and press Enter
-2. **Branch out** — Type a follow-up in any card's "Continue researching…" box to create a child node
-3. **Build a mind map** — Ask for a structured breakdown using headers; click the mindmap button on the response card to auto-layout
-4. **Take notes** — Click **+ My Note** to drop a sticky note anywhere on the canvas
-5. **Manage sessions** — Use the left sidebar to switch between research sessions or start a new one
-
----
-
-## Architecture
-
-```
-thinkflow/
-├── app/
-│   ├── page.tsx              # Root layout — sidebar + canvas
-│   └── api/chat/route.ts     # Streaming Gemini API endpoint
-├── components/
-│   ├── ThinkCanvas.tsx       # React Flow canvas, node/edge state, branch logic
-│   ├── ResearchNode.tsx      # Card UI — AI content, note editing, branch input
-│   ├── DeletableEdge.tsx     # Custom edge with hover-to-delete
-│   ├── ExpandModal.tsx       # Full-screen content overlay
-│   └── Sidebar.tsx           # Session management panel
-├── lib/
-│   ├── gemini.ts             # Gemini streaming client
-│   └── sessions.ts           # localStorage session helpers
-└── types/index.ts            # Shared TypeScript interfaces
-```
-
----
-
-## Design Decisions
-
-**Conversation context per branch** — When you branch from a node, the full path from root to that node is sent as conversation history. This means each branch maintains its own coherent context, so Gemini always understands how the current question relates to the broader research.
-
-**Streaming into nodes** — Responses stream token-by-token directly into the node's content field via React state, so you see the answer appear in real time without blocking the canvas.
-
-**Ref-based submit guard** — The "Continue researching" submit uses a `useRef` guard (not `useState`) to prevent duplicate API calls from rapid Enter+click, since React's state batching can't provide synchronous guarantees.
-
-**Two-level mindmap layout** — The auto-layout algorithm counts leaf slots across all sections to evenly distribute vertical/horizontal space, positioning parent L1 nodes at the centroid of their children.
 
 ---
 
