@@ -196,9 +196,10 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
         gap: 8,
         flexShrink: 0,
       }}>
-        <span style={{ fontSize: 14, fontWeight: 600, color: '#1a1a1a', flex: 1 }}>
-          Board Assistant
-        </span>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>Board Assistant</div>
+          <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>AI 对话助手</div>
+        </div>
         <button
           onClick={onClose}
           style={{
@@ -371,7 +372,7 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
 
       {/* Input */}
       <div style={{
-        padding: '10px 12px 72px',
+        padding: '10px 12px 130px',
         borderTop: '1px solid #e8e5e0',
         flexShrink: 0,
         background: '#faf9f7',

@@ -100,6 +100,7 @@ export default function KanbanBoard({
       <div style={{
         flex: 1, minWidth: 0,
         display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed',
+        borderTopLeftRadius: 12, borderBottomLeftRadius: 12,
       }}>
       {/* Header */}
       <div style={{
