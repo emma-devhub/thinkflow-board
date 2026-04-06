@@ -44,7 +44,6 @@ export default function KanbanBoard({
   const [newDirTitle, setNewDirTitle] = useState('')
   const [dragOverDirId, setDragOverDirId] = useState<string | null>(null)
   const dragId = useRef<string | null>(null)
-  const [hideOldDone, setHideOldDone] = useState(true)
 
   const thisMonday = (() => {
     const d = new Date(); d.setHours(0, 0, 0, 0)
@@ -55,7 +54,7 @@ export default function KanbanBoard({
   const visibleSessions = (selectedProjectId === null
     ? sessions
     : sessions.filter((s) => s.projectId === selectedProjectId)
-  ).filter((s) => !(hideOldDone && s.checked && s.updatedAt < thisMonday))
+  ).filter((s) => !(s.checked && s.updatedAt < thisMonday))
 
   const projectMap = Object.fromEntries(projects.map((p) => [p.id, p]))
   const boardTitle = selectedProjectId ? (projectMap[selectedProjectId]?.title ?? 'Project') : 'All Projects'
@@ -155,22 +154,6 @@ export default function KanbanBoard({
             onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}
           >
             + New Focus
-          </button>
-          <button
-            onClick={() => setHideOldDone((v) => !v)}
-            style={{
-              padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
-              border: '1px solid',
-              borderColor: hideOldDone ? '#1a1a1a' : '#ddd',
-              background: hideOldDone ? '#1a1a1a' : 'white',
-              color: hideOldDone ? 'white' : '#444',
-              transition: 'all 120ms',
-            }}
-            onMouseEnter={(e) => { if (!hideOldDone) (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
-            onMouseLeave={(e) => { if (!hideOldDone) (e.currentTarget as HTMLElement).style.background = 'white' }}
-            title={hideOldDone ? '显示本周前已完成的任务' : '隐藏本周前已完成的任务'}
-          >
-            ✓ 隐藏旧任务
           </button>
           <button
             onClick={onToggleChatOpen}
