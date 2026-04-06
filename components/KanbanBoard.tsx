@@ -119,7 +119,7 @@ export default function KanbanBoard({
       {/* Main board area — flex: 1 so it shrinks when panel opens */}
       <div style={{
         flex: 1, minWidth: 0,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed',
+        display: 'flex', flexDirection: 'column', background: '#f0efed',
         borderTopRightRadius: isChatOpen ? 12 : 0, borderBottomRightRadius: isChatOpen ? 12 : 0,
         transition: 'border-radius 200ms ease',
       }}>
@@ -191,7 +191,7 @@ export default function KanbanBoard({
       </div>
 
       {/* Columns — desktop: horizontal scroll row; mobile: vertical stack */}
-      <div ref={scrollRef} style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: isMobile ? 'hidden' : 'auto', overflowY: isMobile ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
+      <div ref={scrollRef} style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: 'auto', overflowY: isMobile ? 'auto' : 'hidden', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}>
         {/* 未分类 column — always visible, shows tasks with no matching focus */}
         {(() => {
           const dirIds = new Set(dirs.map((d) => d.id))
