@@ -80,7 +80,7 @@ export default function KanbanBoard({
 
   const handleAddCommit = (dirId: string) => {
     const t = addTitle.trim()
-    if (t) onCreateSession(t, selectedProjectId ?? undefined, dirId)
+    if (t) onCreateSession(t, selectedProjectId ?? undefined, dirId === '__unclassified__' ? undefined : dirId)
     setAddTitle('')
     setAddingDirId(null)
   }
@@ -170,13 +170,13 @@ export default function KanbanBoard({
 
       {/* Columns — desktop: horizontal row; mobile: vertical stack */}
       <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: 'hidden', overflowY: isMobile ? 'auto' : 'hidden' }}>
-        {/* 未分类 fallback column — tasks with no matching focus */}
+        {/* 未分类 column — always visible, shows tasks with no matching focus */}
         {(() => {
           const dirIds = new Set(dirs.map((d) => d.id))
           const unclassified = visibleSessions.filter((s) => !dirIds.has(sessionDirId(s)))
-          if (unclassified.length === 0) return null
+          const isAdding = addingDirId === '__unclassified__'
           return (
-            <div style={{ flex: isMobile ? undefined : 1, minWidth: isMobile ? undefined : 160, width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 10, opacity: 0.7 }}>
+            <div style={{ flex: isMobile ? undefined : 1, minWidth: isMobile ? undefined : 160, width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, paddingBottom: 8, borderBottom: '1px dashed #ccc' }}>
                 <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#aaa' }}>未分类</span>
                 <span style={{ marginLeft: 'auto', fontSize: 10, background: '#e5e3df', color: '#999', padding: '1px 5px', borderRadius: 6 }}>{unclassified.length}</span>
@@ -198,6 +198,27 @@ export default function KanbanBoard({
                     />
                   )
                 })}
+                {isAdding && (
+                  <div style={{ background: 'white', borderRadius: 8, padding: '8px 10px', border: '1px solid #e8e5e0', borderLeft: '3px solid #ddd' }}>
+                    <input
+                      autoFocus
+                      value={addTitle}
+                      onChange={(e) => setAddTitle(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === 'Enter') handleAddCommit('__unclassified__'); if (e.key === 'Escape') { setAddingDirId(null); setAddTitle('') } }}
+                      onBlur={() => handleAddCommit('__unclassified__')}
+                      placeholder="Subtask title…"
+                      style={{ width: '100%', border: 'none', outline: 'none', fontSize: 13, color: '#1a1a1a', background: 'transparent' }}
+                    />
+                  </div>
+                )}
+                <button
+                  onClick={() => { setAddingDirId('__unclassified__'); setAddTitle('') }}
+                  style={{ border: '1.5px dashed #ddd', borderRadius: 8, padding: '8px 12px', color: '#bbb', fontSize: 12, cursor: 'pointer', display: isAdding ? 'none' : 'flex', alignItems: 'center', gap: 6, background: 'transparent', width: '100%', textAlign: 'left' }}
+                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#bbb'; (e.currentTarget as HTMLElement).style.color = '#999'; (e.currentTarget as HTMLElement).style.background = 'white' }}
+                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.borderColor = '#ddd'; (e.currentTarget as HTMLElement).style.color = '#bbb'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+                >
+                  + Add subtask
+                </button>
               </div>
             </div>
           )
