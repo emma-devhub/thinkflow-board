@@ -119,7 +119,7 @@ export default function KanbanBoard({
       {/* Main board area — flex: 1 so it shrinks when panel opens */}
       <div style={{
         flex: 1, minWidth: 0,
-        display: 'flex', flexDirection: 'column', background: '#f0efed',
+        display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#f0efed',
         borderTopRightRadius: isChatOpen ? 12 : 0, borderBottomRightRadius: isChatOpen ? 12 : 0,
         transition: 'border-radius 200ms ease',
       }}>
