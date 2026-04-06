@@ -2,11 +2,10 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "thinkflow",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "port": 3001,
-      "autoPort": true
+      "name": "thinkflow-board",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd '/Users/emmasun/Claude Code Workspace/thinkflow-board' && /usr/local/bin/node /usr/local/bin/npm run dev"],
+      "port": 3001
     }
   ]
 }

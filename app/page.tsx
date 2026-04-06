@@ -6,6 +6,7 @@ import Sidebar from '@/components/Sidebar'
 import ProjectRail from '@/components/ProjectRail'
 import KanbanBoard from '@/components/KanbanBoard'
 import WeekBoard from '@/components/WeekBoard'
+import BoardChatPanel from '@/components/BoardChatPanel'
 import {
   loadSessionsIndex,
   loadCurrentSessionId,
@@ -48,6 +49,7 @@ export default function Home() {
   const [boardView, setBoardView] = useState<'domain' | 'week'>(() => initMobile() ? 'week' : 'domain')
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [isChatOpen, setIsChatOpen] = useState(false)
 
   // Bootstrap on mount
   useEffect(() => {
@@ -192,7 +194,7 @@ export default function Home() {
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {view === 'kanban' ? (
         /* ── Project board (independent page) ── */
-        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
+        <div style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
           {!isMobile && (
             <ProjectRail
               projects={projects}
@@ -217,6 +219,8 @@ export default function Home() {
               onCreateTasks={handleCreateTasks}
               boardView={boardView}
               onBoardViewChange={setBoardView}
+              isChatOpen={isChatOpen}
+              onToggleChatOpen={() => setIsChatOpen((v) => !v)}
             />
           ) : (
             <WeekBoard
@@ -233,8 +237,27 @@ export default function Home() {
               onCreateTasks={handleCreateTasks}
               boardView={boardView}
               onBoardViewChange={setBoardView}
+              isChatOpen={isChatOpen}
+              onToggleChatOpen={() => setIsChatOpen((v) => !v)}
             />
           )}
+
+          {/* Shared AI chat panel — fixed overlay on the right, persists across view switches */}
+          <div style={{
+            position: 'absolute', top: 0, right: 0, bottom: 0,
+            width: isChatOpen ? 320 : 0,
+            flexShrink: 0, overflow: 'hidden',
+            transition: 'width 200ms ease',
+            display: 'flex', flexDirection: 'column',
+            zIndex: 50,
+          }}>
+            <BoardChatPanel
+              projects={projects}
+              dirs={dirs}
+              onCreateTasks={handleCreateTasks}
+              onClose={() => setIsChatOpen(false)}
+            />
+          </div>
         </div>
       ) : (
         /* ── Canvas (main view, full screen) ── */

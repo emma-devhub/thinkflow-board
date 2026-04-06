@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, TaskStatus, ParsedTask } from '@/types'
-import BoardChatPanel from './BoardChatPanel'
 import { type Direction, loadDirections, saveDirections, EXTRA_COLORS } from '@/lib/directions'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -19,6 +18,8 @@ interface Props {
   onCreateTasks: (tasks: ParsedTask[]) => void
   boardView: 'domain' | 'week'
   onBoardViewChange: (v: 'domain' | 'week') => void
+  isChatOpen: boolean
+  onToggleChatOpen: () => void
 }
 
 // Which column does a session belong to?
@@ -30,12 +31,11 @@ function sessionDirId(s: SessionMeta): string {
 export default function KanbanBoard({
   sessions, projects, selectedProjectId,
   onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
-  onCreateTasks, boardView, onBoardViewChange,
+  onCreateTasks, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen,
 }: Props) {
   const isMobile = useIsMobile()
   const [dirs, setDirs] = useState<Direction[]>([])
   useEffect(() => { loadDirections().then(setDirs) }, [])
-  const [isChatOpen, setIsChatOpen] = useState(false)
   const [addingDirId, setAddingDirId] = useState<string | null>(null)
   const [addTitle, setAddTitle] = useState('')
   const [editingDirId, setEditingDirId] = useState<string | null>(null)
@@ -147,7 +147,7 @@ export default function KanbanBoard({
             + New Focus
           </button>
           <button
-            onClick={() => setIsChatOpen((v) => !v)}
+            onClick={onToggleChatOpen}
             style={{
               padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
               border: '1px solid',
@@ -328,22 +328,6 @@ export default function KanbanBoard({
       </div>
       </div>{/* end main board area */}
 
-      {/* AI Chat Panel — flex sibling that expands/collapses to push board */}
-      <div style={{
-        flexShrink: 0,
-        width: isChatOpen ? 320 : 0,
-        overflow: 'hidden',
-        transition: 'width 200ms ease',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        <BoardChatPanel
-          projects={projects}
-          dirs={dirs}
-          onCreateTasks={onCreateTasks}
-          onClose={() => setIsChatOpen(false)}
-        />
-      </div>
     </div>
   )
 }

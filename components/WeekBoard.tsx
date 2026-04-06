@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, ParsedTask } from '@/types'
-import BoardChatPanel from './BoardChatPanel'
 import { useIsMobile } from '@/lib/useIsMobile'
 import { loadDirections, type Direction } from '@/lib/directions'
 
@@ -20,6 +19,8 @@ interface Props {
   onCreateTasks: (tasks: ParsedTask[]) => void
   boardView: 'domain' | 'week'
   onBoardViewChange: (v: 'domain' | 'week') => void
+  isChatOpen: boolean
+  onToggleChatOpen: () => void
 }
 
 // ── Week helpers ──────────────────────────────────────────────────────────────
@@ -65,12 +66,11 @@ function getRecurringProgress(
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
   onSchedule, onReorderWeek, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
-  onCreateTasks, boardView, onBoardViewChange,
+  onCreateTasks, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen,
 }: Props) {
   const isMobile = useIsMobile()
   const weekDays = getWeekDays()
   const today = localDateStr(new Date())
-  const [isChatOpen, setIsChatOpen] = useState(false)
   const [dirs, setDirs] = useState<Direction[]>([])
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
@@ -92,24 +92,6 @@ export default function WeekBoard({
     }
   }, [isMobile])
 
-  // Compensate scroll position when AI panel opens/closes so visible columns don't jump.
-  // When opening: wait for the 200ms width transition to complete, then scroll right by 320px
-  // so the columns that were visible before remain visible.
-  // When closing: immediately scroll left by 320px to compensate for the expanding container.
-  useEffect(() => {
-    if (isMobile) return
-    const container = scrollContainerRef.current
-    if (!container) return
-    if (isChatOpen) {
-      const prev = container.scrollLeft
-      const timer = setTimeout(() => {
-        container.scrollLeft = prev + 320
-      }, 210)
-      return () => clearTimeout(timer)
-    } else {
-      container.scrollLeft = Math.max(container.scrollLeft - 320, 0)
-    }
-  }, [isChatOpen, isMobile])
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
   const [dragOverCardPos, setDragOverCardPos] = useState<'above' | 'below'>('below')
@@ -251,7 +233,7 @@ export default function WeekBoard({
             </button>
           ))}
           <button
-            onClick={() => setIsChatOpen((v) => !v)}
+            onClick={onToggleChatOpen}
             style={{
               padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
               border: '1px solid',
@@ -551,23 +533,6 @@ export default function WeekBoard({
       </div>
 
       </div>{/* end columns */}
-
-      {/* AI Chat Panel */}
-      <div style={{
-        width: isChatOpen ? 320 : 0,
-        flexShrink: 0,
-        overflow: 'hidden',
-        transition: 'width 200ms ease',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        <BoardChatPanel
-          projects={projects}
-          dirs={[]}
-          onCreateTasks={onCreateTasks}
-          onClose={() => setIsChatOpen(false)}
-        />
-      </div>
 
       </div>{/* end body */}
     </div>
