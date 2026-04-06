@@ -50,7 +50,8 @@ function getMonday(today: string): string {
 function buildSystemPrompt(
   projects: ProjectInfo[],
   columns: ColumnInfo[],
-  today: string
+  today: string,
+  memory?: string
 ): string {
   const projectList = projects.length > 0
     ? projects.map((p) => `- "${p.title}" (id: ${p.id})`).join('\n')
@@ -100,7 +101,10 @@ You can answer questions about tasks, projects, or productivity. Keep responses 
 **3. General help**
 Help the user think through their work or priorities.
 
-Always respond in the same language the user writes in (中文 or English).`
+Always respond in the same language the user writes in (中文 or English).${memory ? `
+
+## Your memory (persistent notes about this user)
+${memory}` : ''}`
 }
 
 export async function POST(req: NextRequest) {
@@ -112,12 +116,13 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { message, context, projects, columns, today } = (await req.json()) as {
+  const { message, context, projects, columns, today, memory } = (await req.json()) as {
     message: string
     context: ConversationMessage[]
     projects: ProjectInfo[]
     columns: ColumnInfo[]
     today: string
+    memory?: string
   }
 
   const apiKey = process.env.GEMINI_API_KEY
@@ -143,7 +148,7 @@ export async function POST(req: NextRequest) {
         thinkingConfig: { thinkingBudget: 0 },
       },
       systemInstruction: {
-        parts: [{ text: buildSystemPrompt(projects, columns, today) }],
+        parts: [{ text: buildSystemPrompt(projects, columns, today, memory) }],
       },
     }),
   })

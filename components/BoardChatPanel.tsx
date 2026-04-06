@@ -2,6 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react'
 import type { Project, ParsedTask } from '@/types'
+import { loadChatHistory, loadMemory, saveChatMessage, saveMemory } from '@/lib/memory'
 
 interface Direction {
   id: string
@@ -62,18 +63,42 @@ function streamingDisplayText(raw: string): string {
   return idx === -1 ? raw : raw.slice(0, idx).trimEnd()
 }
 
+const DISTILL_EVERY = 10
+
 export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose }: Props) {
-  const [messages, setMessages] = useState<ChatMsg[]>([
-    {
-      id: 'welcome',
-      role: 'assistant',
-      text: '你好！你可以：\n• 粘贴一段 todo 列表，让我帮你生成 card\n• 问我关于任务或项目的问题',
-    },
-  ])
+  const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
+  const [isHistoryLoading, setIsHistoryLoading] = useState(true)
   const bottomRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const memoryRef = useRef<string>('')
+  const userMsgCountRef = useRef<number>(0)
+
+  // Load history + memory on mount
+  useEffect(() => {
+    ;(async () => {
+      const [history, memory] = await Promise.all([loadChatHistory(), loadMemory()])
+      memoryRef.current = memory
+      if (history.length === 0) {
+        setMessages([{
+          id: 'welcome',
+          role: 'assistant',
+          text: '你好！你可以：\n• 粘贴一段 todo 列表，让我帮你生成 card\n• 问我关于任务或项目的问题',
+        }])
+      } else {
+        userMsgCountRef.current = history.filter((m) => m.role === 'user').length
+        setMessages(history.map((m) => ({
+          id: m.id,
+          role: m.role,
+          text: m.content,
+          tasks: m.tasks as ParsedTask[] | undefined,
+          tasksAdded: !!(m.tasks as ParsedTask[] | undefined)?.length,
+        })))
+      }
+      setIsHistoryLoading(false)
+    })()
+  }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -95,6 +120,10 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
     setMessages((prev) => [...prev, userMsg, assistantMsg])
     setIsLoading(true)
 
+    // Track user message count for distillation
+    userMsgCountRef.current += 1
+    const countSnapshot = userMsgCountRef.current
+
     // Build context from conversation history (exclude welcome msg)
     const context = messages
       .filter((m) => m.id !== 'welcome')
@@ -113,6 +142,7 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
           projects: projects.map((p) => ({ id: p.id, title: p.title })),
           columns: dirs.map((d) => ({ id: d.id, label: d.label })),
           today: localDateStr(new Date()),
+          memory: memoryRef.current || undefined,
         }),
       })
 
@@ -153,6 +183,25 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
             : m
         )
       )
+
+      // Persist both messages (fire-and-forget)
+      saveChatMessage('user', text)
+      saveChatMessage('assistant', displayText, tasks ?? undefined)
+
+      // Every DISTILL_EVERY user messages, update memory in background
+      if (countSnapshot % DISTILL_EVERY === 0) {
+        const allMsgs = [...context, { role: 'user', content: text }, { role: 'model', content: displayText }]
+        fetch('/api/distill-memory', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: allMsgs, currentMemory: memoryRef.current }),
+        })
+          .then((r) => r.json())
+          .then(({ memory }: { memory: string }) => {
+            if (memory) { memoryRef.current = memory; saveMemory(memory) }
+          })
+          .catch(() => { /* silently ignore */ })
+      }
     } finally {
       setIsLoading(false)
     }
@@ -215,6 +264,9 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
 
       {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {isHistoryLoading && (
+          <div style={{ textAlign: 'center', color: '#ccc', fontSize: 12, marginTop: 20 }}>加载历史记录…</div>
+        )}
         {messages.map((msg) => (
           <div key={msg.id}>
             {msg.role === 'user' ? (
