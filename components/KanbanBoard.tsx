@@ -27,6 +27,16 @@ function sessionDirId(s: SessionMeta): string {
   return s.columnId ?? s.status
 }
 
+function getRecurringProgress(
+  session: SessionMeta,
+  allSessions: SessionMeta[]
+): { done: number; total: number } | null {
+  if (!session.recurringGroupId) return null
+  const group = allSessions.filter((s) => s.recurringGroupId === session.recurringGroupId)
+  if (group.length === 0) return null
+  return { done: group.filter((s) => s.checked).length, total: group.length }
+}
+
 // ── Component ────────────────────────────────────────────────────────────────
 export default function KanbanBoard({
   sessions, projects, selectedProjectId,
@@ -212,6 +222,7 @@ export default function KanbanBoard({
                       session={s}
                       project={proj ?? null}
                       showProject={selectedProjectId === null}
+                      recurringProgress={getRecurringProgress(s, sessions)}
                       onOpen={() => onOpenCanvas(s.id)}
                       onDelete={() => onDeleteSession(s.id)}
                       onToggleChecked={(v) => onToggleChecked(s.id, v)}
@@ -284,6 +295,7 @@ export default function KanbanBoard({
                       session={s}
                       project={proj}
                       showProject={selectedProjectId === null}
+                      recurringProgress={getRecurringProgress(s, sessions)}
                       onOpen={() => onOpenCanvas(s.id)}
                       onDelete={() => onDeleteSession(s.id)}
                       onToggleChecked={(v) => onToggleChecked(s.id, v)}
@@ -413,10 +425,11 @@ function ColHeader({ dir, count, editing, draft, onDraftChange, onStartEdit, onC
 }
 
 // ── Card ──────────────────────────────────────────────────────────────────────
-function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleChecked, onRename, onDragStart }: {
+function KanbanCard({ session, project, showProject, recurringProgress, onOpen, onDelete, onToggleChecked, onRename, onDragStart }: {
   session: SessionMeta
   project: Project | null | undefined
   showProject: boolean
+  recurringProgress: { done: number; total: number } | null
   onOpen: () => void
   onDelete: () => void
   onToggleChecked: (v: boolean) => void
@@ -506,6 +519,16 @@ function KanbanCard({ session, project, showProject, onOpen, onDelete, onToggleC
             } as React.CSSProperties}
           >
             {session.title}
+          </span>
+        )}
+
+        {/* Recurring progress badge */}
+        {recurringProgress && !editing && (
+          <span style={{
+            fontSize: 10, fontWeight: 600, flexShrink: 0,
+            color: recurringProgress.done >= recurringProgress.total ? '#4caf86' : '#aaa',
+          }}>
+            {recurringProgress.done}/{recurringProgress.total}次
           </span>
         )}
 
