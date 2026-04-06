@@ -107,7 +107,7 @@ export default function WeekBoard({
   const visibleSessions = (selectedProjectId === null
     ? sessions
     : sessions.filter((s) => s.projectId === selectedProjectId)
-  ).filter((s) => !(s.checked && s.updatedAt < thisMonday))
+  ).filter((s) => !(s.checked && (s.checkedAt ?? s.updatedAt) < thisMonday))
 
   const boardTitle = selectedProjectId ? (projectMap[selectedProjectId]?.title ?? 'Project') : 'All Projects'
   const boardSub = selectedProjectId === null
@@ -662,10 +662,10 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
           <div style={{ display: 'flex', gap: 2, flexShrink: 0 }}>
             <button
               onClick={(e) => { e.stopPropagation(); onOpenCanvas() }}
-              title="Open canvas"
-              style={{ background: 'none', border: 'none', color: '#5578cc', fontSize: 11, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
-              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#eef2ff' }}
-              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none' }}
+              title={session.hasCanvas ? 'Open canvas' : 'Create canvas'}
+              style={{ background: 'none', border: 'none', color: session.hasCanvas ? '#5578cc' : '#ccc', fontSize: 11, cursor: 'pointer', padding: '2px 4px', borderRadius: 4 }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = session.hasCanvas ? '#eef2ff' : '#f5f5f5'; (e.currentTarget as HTMLElement).style.color = session.hasCanvas ? '#5578cc' : '#999' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'none'; (e.currentTarget as HTMLElement).style.color = session.hasCanvas ? '#5578cc' : '#ccc' }}
             >↗</button>
             <button
               onClick={(e) => { e.stopPropagation(); onDelete() }}

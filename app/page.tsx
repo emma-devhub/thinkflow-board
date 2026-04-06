@@ -20,6 +20,7 @@ import {
   updateSessionChecked,
   updateSessionSchedule,
   updateSessionsWeekOrder,
+  updateSessionHasCanvas,
 } from '@/lib/sessions'
 import {
   loadProjects,
@@ -88,7 +89,8 @@ export default function Home() {
 
   // ── Session/subtask callbacks ──
   const handleCreateSession = useCallback(async (title: string, projectId?: string, columnId?: string) => {
-    const s = await createSession(title, { projectId, columnId })
+    // Sessions created directly from canvas sidebar are canvas sessions
+    const s = await createSession(title, { projectId, columnId, hasCanvas: true })
     setSessions((prev) => [s, ...prev])
     setCanvasSessionId(s.id)
   }, [])
@@ -106,7 +108,8 @@ export default function Home() {
 
   const handleToggleChecked = useCallback(async (id: string, checked: boolean) => {
     updateSessionChecked(id, checked)
-    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, checked } : s))
+    const checkedAt = checked ? Date.now() : undefined
+    setSessions((prev) => prev.map((s) => s.id === id ? { ...s, checked, checkedAt } : s))
   }, [])
 
   const handleRenameSession = useCallback(async (id: string, title: string) => {
@@ -179,6 +182,14 @@ export default function Home() {
   }, [projects, dirs])
 
   const handleOpenCanvas = useCallback((sessionId: string) => {
+    // Mark hasCanvas on first open (fire-and-forget)
+    setSessions((prev) => prev.map((s) => {
+      if (s.id === sessionId && !s.hasCanvas) {
+        updateSessionHasCanvas(sessionId)
+        return { ...s, hasCanvas: true }
+      }
+      return s
+    }))
     setCanvasSessionId(sessionId)
     saveCurrentSessionId(sessionId)
     setView('canvas')
@@ -264,7 +275,7 @@ export default function Home() {
           <Sidebar
             isOpen={sidebarOpen}
             onToggle={() => setSidebarOpen((v) => !v)}
-            sessions={sessions}
+            sessions={sessions.filter((s) => s.hasCanvas)}
             currentSessionId={canvasSessionId}
             onSelectSession={(id) => { setCanvasSessionId(id); saveCurrentSessionId(id) }}
             onNewSession={() => handleCreateSession('New session')}

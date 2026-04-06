@@ -16,11 +16,13 @@ export interface SessionMeta {
   status: TaskStatus
   columnId?: string
   checked?: boolean
+  checkedAt?: number    // ms timestamp when last checked (for filtering old done tasks)
   dueDate?: string      // 'YYYY-MM-DD'
   estimatedMins?: number
   weekOrder?: number    // sort key within a day column (lower = higher up)
   recurringGroupId?: string  // shared ID across all instances of a recurring task
   weeklyTarget?: number      // total times per week (e.g. 3 for "gym 3x/week")
+  hasCanvas?: boolean   // true once user has opened/created canvas for this card
 }
 
 export interface ConversationMessage {

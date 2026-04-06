@@ -25,11 +25,13 @@ function rowToSession(row: Record<string, unknown>): SessionMeta {
     projectId: (row.project_id as string | null) ?? undefined,
     columnId: (row.column_id as string | null) ?? undefined,
     checked: (row.checked as boolean) ?? false,
+    checkedAt: (row.checked_at as number | null) ?? undefined,
     dueDate: (row.due_date as string | null) ?? undefined,
     estimatedMins: (row.estimated_mins as number | null) ?? undefined,
     weekOrder: (row.week_order as number | null) ?? undefined,
     recurringGroupId: (row.recurring_group_id as string | null) ?? undefined,
     weeklyTarget: (row.weekly_target as number | null) ?? undefined,
+    hasCanvas: (row.has_canvas as boolean | null) ?? false,
   }
 }
 
@@ -46,7 +48,7 @@ export async function loadSessionsIndex(): Promise<SessionMeta[]> {
 
 export async function createSession(
   title = 'New session',
-  opts: { projectId?: string; status?: TaskStatus; columnId?: string } = {}
+  opts: { projectId?: string; status?: TaskStatus; columnId?: string; hasCanvas?: boolean } = {}
 ): Promise<SessionMeta> {
   const now = Date.now()
   const session: SessionMeta = {
@@ -57,6 +59,7 @@ export async function createSession(
     status: opts.status ?? 'todo',
     projectId: opts.projectId,
     columnId: opts.columnId,
+    hasCanvas: opts.hasCanvas ?? false,
   }
   const { error } = await supabase.from('sessions').insert({
     id: session.id,
@@ -66,6 +69,7 @@ export async function createSession(
     status: session.status,
     project_id: session.projectId ?? null,
     column_id: session.columnId ?? null,
+    has_canvas: session.hasCanvas ?? false,
   })
   if (error) console.error('createSession:', error)
   saveCurrentSessionId(session.id)
@@ -111,11 +115,20 @@ export async function updateSessionColumn(id: string, columnId: string): Promise
 }
 
 export async function updateSessionChecked(id: string, checked: boolean): Promise<void> {
+  const now = Date.now()
   const { error } = await supabase
     .from('sessions')
-    .update({ checked, updated_at: Date.now() })
+    .update({ checked, checked_at: checked ? now : null, updated_at: now })
     .eq('id', id)
   if (error) console.error('updateSessionChecked:', error)
+}
+
+export async function updateSessionHasCanvas(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ has_canvas: true, updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('updateSessionHasCanvas:', error)
 }
 
 export async function updateSessionSchedule(
@@ -135,7 +148,6 @@ export async function updateSessionSchedule(
 }
 
 export async function updateSessionsWeekOrder(updates: { id: string; weekOrder: number }[]): Promise<void> {
-  // Fire parallel updates
   await Promise.all(
     updates.map(({ id, weekOrder }) =>
       supabase
@@ -175,6 +187,7 @@ export async function createRecurringSessions(
       due_date: dueDate,
       recurring_group_id: groupId,
       weekly_target: weeklyTarget,
+      has_canvas: false,
     }
   })
 
@@ -193,5 +206,6 @@ export async function createRecurringSessions(
     dueDate: row.due_date,
     recurringGroupId: groupId,
     weeklyTarget,
+    hasCanvas: false,
   }))
 }
