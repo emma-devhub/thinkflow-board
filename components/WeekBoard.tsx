@@ -57,10 +57,11 @@ function getRecurringProgress(
   session: SessionMeta,
   allSessions: SessionMeta[]
 ): { done: number; total: number } | null {
-  if (!session.recurringGroupId || !session.weeklyTarget) return null
+  if (!session.recurringGroupId) return null
   const group = allSessions.filter((s) => s.recurringGroupId === session.recurringGroupId)
+  if (group.length === 0) return null
   const done = group.filter((s) => s.checked).length
-  return { done, total: session.weeklyTarget }
+  return { done, total: group.length }
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
