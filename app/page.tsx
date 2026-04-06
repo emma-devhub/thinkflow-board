@@ -194,7 +194,7 @@ export default function Home() {
     <div style={{ width: '100vw', height: '100vh', overflow: 'hidden' }}>
       {view === 'kanban' ? (
         /* ── Project board (independent page) ── */
-        <div style={{ display: 'flex', width: '100%', height: '100%', position: 'relative' }}>
+        <div style={{ display: 'flex', width: '100%', height: '100%' }}>
           {!isMobile && (
             <ProjectRail
               projects={projects}
@@ -243,14 +243,12 @@ export default function Home() {
             />
           )}
 
-          {/* Shared AI chat panel — fixed overlay on the right, persists across view switches */}
+          {/* Shared AI chat panel — flex sibling, pushes board content left when open */}
           <div style={{
-            position: 'absolute', top: 0, right: 0, bottom: 0,
             width: isChatOpen ? 320 : 0,
             flexShrink: 0, overflow: 'hidden',
             transition: 'width 200ms ease',
             display: 'flex', flexDirection: 'column',
-            zIndex: 50,
           }}>
             <BoardChatPanel
               projects={projects}
