@@ -372,7 +372,7 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
 
       {/* Input */}
       <div style={{
-        padding: '10px 12px 130px',
+        padding: '10px 12px 16px',
         borderTop: '1px solid #e8e5e0',
         flexShrink: 0,
         background: '#faf9f7',
@@ -385,12 +385,12 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
         }}>
           <textarea
             ref={textareaRef}
-            rows={1}
+            rows={3}
             value={input}
             onChange={(e) => {
               setInput(e.target.value)
               e.target.style.height = 'auto'
-              e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
+              e.target.style.height = `${Math.min(e.target.scrollHeight, 160)}px`
             }}
             onKeyDown={handleKeyDown}
             placeholder="添加 todo，或问我任何问题…"
@@ -398,7 +398,8 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
             style={{
               flex: 1, border: 'none', outline: 'none', resize: 'none',
               fontSize: 13, lineHeight: 1.5, background: 'transparent',
-              color: '#1a1a1a', maxHeight: 120, overflow: 'auto',
+              color: '#1a1a1a', maxHeight: 160, overflow: 'auto',
+              minHeight: 60,
             }}
           />
           <button
