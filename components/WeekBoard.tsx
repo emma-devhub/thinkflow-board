@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react'
 import type { SessionMeta, Project, ParsedTask } from '@/types'
 import BoardChatPanel from './BoardChatPanel'
 import { useIsMobile } from '@/lib/useIsMobile'
+import { loadDirections, type Direction } from '@/lib/directions'
 
 interface Props {
   sessions: SessionMeta[]
@@ -11,7 +12,7 @@ interface Props {
   selectedProjectId: string | null
   onSchedule: (id: string, dueDate: string | undefined, estimatedMins: number | undefined) => void
   onReorderWeek: (updates: { id: string; weekOrder: number }[]) => void
-  onCreateSession: (title: string, projectId?: string, dueDate?: string) => void
+  onCreateSession: (title: string, projectId?: string, dueDate?: string, columnId?: string) => void
   onDelete: (id: string) => void
   onToggleChecked: (id: string, checked: boolean) => void
   onRename: (id: string, title: string) => void
@@ -70,9 +71,12 @@ export default function WeekBoard({
   const weekDays = getWeekDays()
   const today = localDateStr(new Date())
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [dirs, setDirs] = useState<Direction[]>([])
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const todayColRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => { loadDirections().then(setDirs) }, [])
 
   // Scroll to today — horizontal on desktop, vertical on mobile
   useEffect(() => {
@@ -87,6 +91,25 @@ export default function WeekBoard({
       container.scrollLeft += todayRect.left - containerRect.left - 24
     }
   }, [isMobile])
+
+  // Compensate scroll position when AI panel opens/closes so visible columns don't jump.
+  // When opening: wait for the 200ms width transition to complete, then scroll right by 320px
+  // so the columns that were visible before remain visible.
+  // When closing: immediately scroll left by 320px to compensate for the expanding container.
+  useEffect(() => {
+    if (isMobile) return
+    const container = scrollContainerRef.current
+    if (!container) return
+    if (isChatOpen) {
+      const prev = container.scrollLeft
+      const timer = setTimeout(() => {
+        container.scrollLeft = prev + 320
+      }, 210)
+      return () => clearTimeout(timer)
+    } else {
+      container.scrollLeft = Math.max(container.scrollLeft - 320, 0)
+    }
+  }, [isChatOpen, isMobile])
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
   const [dragOverCardPos, setDragOverCardPos] = useState<'above' | 'below'>('below')
@@ -153,11 +176,40 @@ export default function WeekBoard({
     clearDragState()
   }
 
+  // Parse @mentions in a title to extract projectId and columnId.
+  // e.g. "去gym @LIFE @Vibe Coding" → { title: "去gym", projectId: <LIFE id>, columnId: <Vibe Coding id> }
+  // Unrecognised @mentions are left in the title unchanged.
+  const parseMentions = (raw: string): { title: string; projectId?: string; columnId?: string } => {
+    const parts = raw.split('@')
+    const titlePart = parts[0].trimEnd()
+    let projectId: string | undefined
+    let columnId: string | undefined
+    const unmatched: string[] = []
+
+    for (let i = 1; i < parts.length; i++) {
+      const segment = parts[i].trim()
+      const lower = segment.toLowerCase()
+
+      const proj = projects.find((p) => p.title.toLowerCase() === lower)
+      if (proj && !projectId) { projectId = proj.id; continue }
+
+      const dir = dirs.find((d) => d.label.toLowerCase() === lower)
+      if (dir && !columnId) { columnId = dir.id; continue }
+
+      unmatched.push('@' + parts[i].trimEnd())
+    }
+
+    const title = (titlePart + (unmatched.length ? ' ' + unmatched.join(' ') : '')).trim()
+    return { title, projectId, columnId }
+  }
+
   const handleAddCommit = (colKey: string) => {
-    const t = addTitle.trim()
-    if (t) {
+    const raw = addTitle.trim()
+    if (raw) {
       const dueDate = colKey === 'unscheduled' ? undefined : colKey
-      onCreateSession(t, selectedProjectId ?? undefined, dueDate)
+      const { title, projectId: mentionedProject, columnId } = parseMentions(raw)
+      const resolvedProjectId = mentionedProject ?? selectedProjectId ?? undefined
+      onCreateSession(title, resolvedProjectId, dueDate, columnId)
     }
     setAddTitle('')
     setAddingColKey(null)

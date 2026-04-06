@@ -15,6 +15,7 @@ import {
   deleteSession,
   updateSessionTitle,
   updateSessionColumn,
+  updateSessionProject,
   updateSessionChecked,
   updateSessionSchedule,
   updateSessionsWeekOrder,
@@ -25,6 +26,7 @@ import {
   deleteProject,
   updateProjectTitle,
 } from '@/lib/projects'
+import { loadDirections, type Direction } from '@/lib/directions'
 import type { SessionMeta, Project, ParsedTask } from '@/types'
 import { useIsMobile } from '@/lib/useIsMobile'
 
@@ -39,6 +41,7 @@ export default function Home() {
   const isMobile = useIsMobile()
   const [sessions, setSessions] = useState<SessionMeta[]>([])
   const [projects, setProjects] = useState<Project[]>([])
+  const [dirs, setDirs] = useState<Direction[]>([])
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null)
   // On mobile: default to kanban+week; on desktop: default to canvas
   const [view, setView] = useState<View>(() => initMobile() ? 'kanban' : 'canvas')
@@ -49,12 +52,14 @@ export default function Home() {
   // Bootstrap on mount
   useEffect(() => {
     ;(async () => {
-      const [loadedSessions, loadedProjects] = await Promise.all([
+      const [loadedSessions, loadedProjects, loadedDirs] = await Promise.all([
         loadSessionsIndex(),
         loadProjects(),
+        loadDirections(),
       ])
       setSessions(loadedSessions)
       setProjects(loadedProjects)
+      setDirs(loadedDirs)
       const lastId = loadCurrentSessionId()
       if (lastId) setCanvasSessionId(lastId)
     })()
@@ -141,12 +146,35 @@ export default function Home() {
     }))
   }, [])
 
-  const handleCreateWeekSession = useCallback(async (title: string, projectId?: string, dueDate?: string) => {
-    const s = await createSession(title, { projectId })
+  const handleCreateWeekSession = useCallback(async (title: string, projectId?: string, dueDate?: string, columnId?: string) => {
+    const s = await createSession(title, { projectId, columnId })
     if (dueDate) updateSessionSchedule(s.id, dueDate, undefined)
-    setSessions((prev) => [{ ...s, dueDate }, ...prev])
+    setSessions((prev) => [{ ...s, dueDate, columnId }, ...prev])
     setCanvasSessionId(s.id)
-  }, [])
+
+    // If no project/focus was specified, ask AI to classify in the background
+    if (!projectId && !columnId) {
+      fetch('/api/classify-task', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title, projects, dirs }),
+      })
+        .then((r) => r.json())
+        .then(({ projectId: guessedProject, columnId: guessedColumn }: { projectId: string | null; columnId: string | null }) => {
+          if (!guessedProject && !guessedColumn) return
+          if (guessedProject) updateSessionProject(s.id, guessedProject)
+          if (guessedColumn) updateSessionColumn(s.id, guessedColumn)
+          setSessions((prev) =>
+            prev.map((sess) =>
+              sess.id === s.id
+                ? { ...sess, projectId: guessedProject ?? sess.projectId, columnId: guessedColumn ?? sess.columnId }
+                : sess
+            )
+          )
+        })
+        .catch(() => { /* silently ignore classify errors */ })
+    }
+  }, [projects, dirs])
 
   const handleOpenCanvas = useCallback((sessionId: string) => {
     setCanvasSessionId(sessionId)

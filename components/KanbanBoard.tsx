@@ -170,6 +170,38 @@ export default function KanbanBoard({
 
       {/* Columns — desktop: horizontal row; mobile: vertical stack */}
       <div style={{ flex: 1, display: 'flex', flexDirection: isMobile ? 'column' : 'row', gap: 16, padding: '20px 24px', overflowX: 'hidden', overflowY: isMobile ? 'auto' : 'hidden' }}>
+        {/* 未分类 fallback column — tasks with no matching focus */}
+        {(() => {
+          const dirIds = new Set(dirs.map((d) => d.id))
+          const unclassified = visibleSessions.filter((s) => !dirIds.has(sessionDirId(s)))
+          if (unclassified.length === 0) return null
+          return (
+            <div style={{ flex: isMobile ? undefined : 1, minWidth: isMobile ? undefined : 160, width: isMobile ? '100%' : undefined, display: 'flex', flexDirection: 'column', gap: 10, opacity: 0.7 }}>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, paddingBottom: 8, borderBottom: '1px dashed #ccc' }}>
+                <span style={{ fontSize: 12, fontWeight: 700, letterSpacing: '.05em', textTransform: 'uppercase', color: '#aaa' }}>未分类</span>
+                <span style={{ marginLeft: 'auto', fontSize: 10, background: '#e5e3df', color: '#999', padding: '1px 5px', borderRadius: 6 }}>{unclassified.length}</span>
+              </div>
+              <div style={{ flex: isMobile ? undefined : 1, overflowY: isMobile ? 'visible' : 'auto', display: 'flex', flexDirection: 'column', gap: 6, paddingRight: 2 }}>
+                {unclassified.map((s) => {
+                  const proj = s.projectId ? projects.find((p) => p.id === s.projectId) : null
+                  return (
+                    <KanbanCard
+                      key={s.id}
+                      session={s}
+                      project={proj ?? null}
+                      showProject={selectedProjectId === null}
+                      onOpen={() => onOpenCanvas(s.id)}
+                      onDelete={() => onDeleteSession(s.id)}
+                      onToggleChecked={(v) => onToggleChecked(s.id, v)}
+                      onRename={(t) => onRenameSession(s.id, t)}
+                      onDragStart={() => { dragId.current = s.id }}
+                    />
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
         {dirs.map((dir) => {
           const dirSessions = visibleSessions.filter((s) => sessionDirId(s) === dir.id)
           const isDragOver = dragOverDirId === dir.id
