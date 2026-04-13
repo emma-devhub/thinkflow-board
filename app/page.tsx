@@ -13,7 +13,10 @@ import {
   saveCurrentSessionId,
   createSession,
   createRecurringSessions,
+  softDeleteSession,
   deleteSession,
+  restoreSession,
+  loadTrashedSessions,
   updateSessionTitle,
   updateSessionColumn,
   updateSessionProject,
@@ -21,6 +24,8 @@ import {
   updateSessionSchedule,
   updateSessionsWeekOrder,
   updateSessionHasCanvas,
+  updateSessionFull,
+  cleanupOldTrashedSessions,
 } from '@/lib/sessions'
 import {
   loadProjects,
@@ -29,7 +34,7 @@ import {
   updateProjectTitle,
 } from '@/lib/projects'
 import { loadDirections, type Direction } from '@/lib/directions'
-import type { SessionMeta, Project, ParsedTask } from '@/types'
+import type { SessionMeta, Project, ParsedTask, ParsedTaskUpdate } from '@/types'
 import { useIsMobile } from '@/lib/useIsMobile'
 
 // Synchronous mobile check for initial state (runs only on client)
@@ -51,9 +56,13 @@ export default function Home() {
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [trash, setTrash] = useState<SessionMeta[]>([])
+  const [isTrashOpen, setIsTrashOpen] = useState(false)
+  const [isTrashLoading, setIsTrashLoading] = useState(false)
 
   // Bootstrap on mount
   useEffect(() => {
+    cleanupOldTrashedSessions() // fire-and-forget: purge soft-deleted items older than 7 days
     ;(async () => {
       const [loadedSessions, loadedProjects, loadedDirs] = await Promise.all([
         loadSessionsIndex(),
@@ -96,10 +105,36 @@ export default function Home() {
   }, [])
 
   const handleDeleteSession = useCallback(async (id: string) => {
-    await deleteSession(id)
+    // Soft-delete: marks deleted_at in DB, moves to in-memory trash for recovery
+    softDeleteSession(id)
+    const deleted = sessions.find((s) => s.id === id)
+    if (deleted) setTrash((prev) => [{ ...deleted, deletedAt: Date.now() }, ...prev])
     setSessions((prev) => prev.filter((s) => s.id !== id))
     if (canvasSessionId === id) setCanvasSessionId('')
-  }, [canvasSessionId])
+  }, [canvasSessionId, sessions])
+
+  const handleOpenTrash = useCallback(async () => {
+    setIsTrashOpen(true)
+    setIsTrashLoading(true)
+    const trashed = await loadTrashedSessions()
+    setTrash(trashed)
+    setIsTrashLoading(false)
+  }, [])
+
+  const handleRestoreSession = useCallback(async (id: string) => {
+    await restoreSession(id)
+    const item = trash.find((s) => s.id === id)
+    if (item) {
+      const restored = { ...item, deletedAt: undefined }
+      setSessions((prev) => [restored, ...prev])
+    }
+    setTrash((prev) => prev.filter((s) => s.id !== id))
+  }, [trash])
+
+  const handlePermanentDelete = useCallback(async (id: string) => {
+    await deleteSession(id)
+    setTrash((prev) => prev.filter((s) => s.id !== id))
+  }, [])
 
   const handleMoveSession = useCallback(async (id: string, columnId: string) => {
     updateSessionColumn(id, columnId)
@@ -195,6 +230,29 @@ export default function Home() {
     setView('canvas')
   }, [])
 
+  const handleUpdateTasksFromAI = useCallback(async (updates: ParsedTaskUpdate[]) => {
+    for (const upd of updates) {
+      const { id, ...fields } = upd
+      await updateSessionFull(id, fields)
+      setSessions((prev) => prev.map((s) => {
+        if (s.id !== id) return s
+        const next = { ...s }
+        if ('title' in fields && fields.title !== undefined) next.title = fields.title
+        if ('projectId' in fields) next.projectId = fields.projectId ?? undefined
+        if ('columnId' in fields) next.columnId = fields.columnId ?? undefined
+        if ('dueDate' in fields) next.dueDate = fields.dueDate ?? undefined
+        if ('startTime' in fields) next.startTime = fields.startTime ?? undefined
+        if ('estimatedMins' in fields) next.estimatedMins = fields.estimatedMins ?? undefined
+        return next
+      }))
+    }
+  }, [])
+
+  const handleCreateProjectFromAI = useCallback(async (title: string) => {
+    const p = await createProject(title)
+    setProjects((prev) => [...prev, p])
+  }, [])
+
   const handleTitleChange = useCallback((title: string) => {
     if (!title || !canvasSessionId) return
     updateSessionTitle(canvasSessionId, title)
@@ -254,20 +312,129 @@ export default function Home() {
             />
           )}
 
-          {/* Shared AI chat panel — flex sibling, pushes board content left when open */}
-          <div style={{
-            width: isChatOpen ? 320 : 0,
-            flexShrink: 0, overflow: 'hidden',
-            transition: 'width 200ms ease',
-            display: 'flex', flexDirection: 'column',
-          }}>
-            <BoardChatPanel
-              projects={projects}
-              dirs={dirs}
-              onCreateTasks={handleCreateTasks}
-              onClose={() => setIsChatOpen(false)}
-            />
-          </div>
+          {/* AI chat panel — flex sibling on desktop, fixed bottom sheet on mobile */}
+          {!isMobile ? (
+            <div style={{
+              width: isChatOpen ? 320 : 0,
+              flexShrink: 0, overflow: 'hidden',
+              transition: 'width 200ms ease',
+              display: 'flex', flexDirection: 'column',
+            }}>
+              {isChatOpen && (
+                <BoardChatPanel
+                  projects={projects}
+                  dirs={dirs}
+                  sessions={sessions}
+                  onCreateTasks={handleCreateTasks}
+                  onUpdateTasks={handleUpdateTasksFromAI}
+                  onCreateProject={handleCreateProjectFromAI}
+                  onClose={() => setIsChatOpen(false)}
+                />
+              )}
+            </div>
+          ) : (
+            isChatOpen && (
+              <div style={{
+                position: 'fixed', bottom: 0, left: 0, right: 0,
+                height: '72vh', zIndex: 100,
+                display: 'flex', flexDirection: 'column',
+                borderRadius: '16px 16px 0 0',
+                overflow: 'hidden',
+                boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
+              }}>
+                {/* Drag handle */}
+                <div style={{ background: '#faf9f7', paddingTop: 10, paddingBottom: 4, display: 'flex', justifyContent: 'center', flexShrink: 0 }}>
+                  <div style={{ width: 36, height: 4, borderRadius: 2, background: '#ddd' }} />
+                </div>
+                <BoardChatPanel
+                  projects={projects}
+                  dirs={dirs}
+                  sessions={sessions}
+                  onCreateTasks={handleCreateTasks}
+                  onUpdateTasks={handleUpdateTasksFromAI}
+                  onCreateProject={handleCreateProjectFromAI}
+                  onClose={() => setIsChatOpen(false)}
+                  isMobile
+                />
+              </div>
+            )
+          )}
+
+          {/* Trash button — floating, bottom-left of board area */}
+          {trash.length > 0 && !isTrashOpen && (
+            <button
+              onClick={handleOpenTrash}
+              style={{
+                position: 'fixed', bottom: 24, left: isMobile ? 16 : 80, zIndex: 50,
+                background: 'white', border: '1px solid #e0ddd9',
+                borderRadius: 10, padding: '7px 13px',
+                fontSize: 12, color: '#888', cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f3f0' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}
+            >
+              🗑 垃圾箱 {trash.length > 0 && <span style={{ background: '#f0ede9', borderRadius: 8, padding: '1px 6px', fontSize: 11, fontWeight: 600, color: '#999' }}>{trash.length}</span>}
+            </button>
+          )}
+
+          {/* Trash panel overlay */}
+          {isTrashOpen && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 200,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(0,0,0,0.25)',
+            }} onClick={() => setIsTrashOpen(false)}>
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  background: 'white', borderRadius: 14, width: 380, maxWidth: '92vw',
+                  maxHeight: '70vh', display: 'flex', flexDirection: 'column',
+                  overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.14)',
+                }}
+              >
+                <div style={{ padding: '16px 20px 12px', borderBottom: '1px solid #f0ede9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 600, color: '#1a1a1a' }}>垃圾箱</div>
+                    <div style={{ fontSize: 12, color: '#aaa', marginTop: 2 }}>已删除的任务可从这里恢复</div>
+                  </div>
+                  <button onClick={() => setIsTrashOpen(false)} style={{ background: 'none', border: 'none', color: '#bbb', fontSize: 14, cursor: 'pointer', padding: '2px 6px', borderRadius: 4 }}
+                    onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#666' }}
+                    onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#bbb' }}>✕</button>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '8px 12px' }}>
+                  {isTrashLoading && <div style={{ textAlign: 'center', color: '#ccc', fontSize: 12, padding: '20px 0' }}>加载中…</div>}
+                  {!isTrashLoading && trash.length === 0 && <div style={{ textAlign: 'center', color: '#ccc', fontSize: 12, padding: '20px 0' }}>垃圾箱为空</div>}
+                  {!isTrashLoading && trash.map((s) => {
+                    const proj = projects.find((p) => p.id === s.projectId)
+                    return (
+                      <div key={s.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 8, marginBottom: 2 }}
+                        onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#faf9f7' }}
+                        onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 13, color: '#444', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{s.title}</div>
+                          {proj && <div style={{ fontSize: 11, color: proj.color, marginTop: 1 }}>{proj.title}</div>}
+                        </div>
+                        <button onClick={() => handleRestoreSession(s.id)}
+                          style={{ flexShrink: 0, fontSize: 11, padding: '4px 9px', borderRadius: 6, border: '1px solid #ddd', background: 'white', color: '#555', cursor: 'pointer' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}>
+                          恢复
+                        </button>
+                        <button onClick={() => handlePermanentDelete(s.id)}
+                          style={{ flexShrink: 0, fontSize: 11, padding: '4px 9px', borderRadius: 6, border: '1px solid #f5c6c6', background: 'white', color: '#c55', cursor: 'pointer' }}
+                          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#fff0f0' }}
+                          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}>
+                          删除
+                        </button>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         /* ── Canvas (main view, full screen) ── */

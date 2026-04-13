@@ -39,6 +39,15 @@ interface ColumnInfo {
   label: string
 }
 
+interface SessionInfo {
+  id: string
+  title: string
+  projectId: string | null
+  columnId: string | null
+  dueDate: string | null
+  startTime: string | null
+}
+
 function getMonday(today: string): string {
   const d = new Date(today)
   const day = d.getDay() // 0=Sun
@@ -51,6 +60,7 @@ function buildSystemPrompt(
   projects: ProjectInfo[],
   columns: ColumnInfo[],
   today: string,
+  sessions: SessionInfo[],
   memory?: string
 ): string {
   const projectList = projects.length > 0
@@ -61,6 +71,19 @@ function buildSystemPrompt(
     ? columns.map((c) => `- "${c.label}" (id: ${c.id})`).join('\n')
     : '(no columns yet)'
 
+  const sessionList = sessions.length > 0
+    ? sessions.slice(0, 80).map((s) => {
+        const parts = [`- "${s.title}" (id: ${s.id})`]
+        const proj = projects.find((p) => p.id === s.projectId)
+        if (proj) parts.push(`project: ${proj.title}`)
+        const col = columns.find((c) => c.id === s.columnId)
+        if (col) parts.push(`focus: ${col.label}`)
+        if (s.dueDate) parts.push(`due: ${s.dueDate}`)
+        if (s.startTime) parts.push(`time: ${s.startTime}`)
+        return parts.join(', ')
+      }).join('\n')
+    : '(no tasks yet)'
+
   return `You are a helpful board assistant for ThinkFlow, a task and project management tool.
 Today's date: ${today}
 
@@ -69,6 +92,9 @@ ${projectList}
 
 Available columns (focus areas):
 ${columnList}
+
+Current tasks (up to 80 most recent):
+${sessionList}
 
 ## Your capabilities
 
@@ -95,10 +121,29 @@ When the user mentions a count target like "3次", "每周3次", "3x/week", or s
 - Example output for "去gym 3次 暂定135":
 <tasks>[{"title":"去gym","projectId":null,"columnId":null,"dueDate":null,"weeklyTarget":3,"plannedDays":["YYYY-MM-DD(Mon)","YYYY-MM-DD(Wed)","YYYY-MM-DD(Fri)"]}]</tasks>
 
-**2. Answering questions**
+**2. Modifying existing tasks**
+When the user asks to rename, reschedule, add a deadline, assign a time slot, or change the project/focus of existing tasks:
+- Match the task by name from the "Current tasks" list above to get its id
+- Only include fields that actually need to change
+- For time slots like "周一2点到4点": set dueDate to the Monday date, startTime to "14:00", estimatedMins to 120
+- startTime format: "HH:MM" (24-hour). estimatedMins is duration in minutes.
+- Output in this EXACT format:
+
+<update_tasks>[{"id":"sess-xxx","title":"optional new title","projectId":"id or null","columnId":"id or null","dueDate":"YYYY-MM-DD or null","startTime":"HH:MM or null","estimatedMins":60}]</update_tasks>
+
+- Only include fields you want to change. Omit unchanged fields entirely.
+- IMPORTANT: The JSON inside <update_tasks> must be valid, compact JSON on a single line.
+
+**3. Creating a new project**
+When the user asks to create a new project (e.g. "新建一个叫XX的项目", "create a project called XX"):
+- Output in this EXACT format:
+
+<create_project>{"title":"Project Name"}</create_project>
+
+**4. Answering questions**
 You can answer questions about tasks, projects, or productivity. Keep responses concise.
 
-**3. General help**
+**5. General help**
 Help the user think through their work or priorities.
 
 Always respond in the same language the user writes in (中文 or English).${memory ? `
@@ -116,11 +161,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { message, context, projects, columns, today, memory } = (await req.json()) as {
+  const { message, context, projects, columns, sessions, today, memory } = (await req.json()) as {
     message: string
     context: ConversationMessage[]
     projects: ProjectInfo[]
     columns: ColumnInfo[]
+    sessions: SessionInfo[]
     today: string
     memory?: string
   }
@@ -148,7 +194,7 @@ export async function POST(req: NextRequest) {
         thinkingConfig: { thinkingBudget: 0 },
       },
       systemInstruction: {
-        parts: [{ text: buildSystemPrompt(projects, columns, today, memory) }],
+        parts: [{ text: buildSystemPrompt(projects, columns, today, sessions ?? [], memory) }],
       },
     }),
   })

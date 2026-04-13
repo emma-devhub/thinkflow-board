@@ -1,8 +1,8 @@
 'use client'
 
 import { useRef, useState, useEffect } from 'react'
-import type { Project, ParsedTask } from '@/types'
-import { loadChatHistory, loadMemory, saveChatMessage, saveMemory } from '@/lib/memory'
+import type { Project, ParsedTask, ParsedTaskUpdate, ParsedProjectCreate, SessionMeta } from '@/types'
+import { loadChatHistory, loadMemory, saveChatMessage, saveMemory, clearChatHistory } from '@/lib/memory'
 
 interface Direction {
   id: string
@@ -14,15 +14,26 @@ interface ChatMsg {
   id: string
   role: 'user' | 'assistant'
   text: string
+  // create-tasks action
   tasks?: ParsedTask[]
   tasksAdded?: boolean
+  // update-tasks action
+  taskUpdates?: ParsedTaskUpdate[]
+  taskUpdatesApplied?: boolean
+  // create-project action
+  projectCreate?: ParsedProjectCreate
+  projectCreateApplied?: boolean
 }
 
 interface Props {
   projects: Project[]
   dirs: Direction[]
+  sessions: SessionMeta[]
   onCreateTasks: (tasks: ParsedTask[]) => void
+  onUpdateTasks: (updates: ParsedTaskUpdate[]) => void
+  onCreateProject: (title: string) => void
   onClose: () => void
+  isMobile?: boolean
 }
 
 function localDateStr(d: Date): string {
@@ -57,15 +68,46 @@ function parseTasksBlock(raw: string): { displayText: string; tasks: ParsedTask[
   }
 }
 
-// While streaming, hide everything from <tasks> onward so raw JSON never shows
+function parseUpdateTasksBlock(raw: string): { displayText: string; taskUpdates: ParsedTaskUpdate[] | null } {
+  const match = raw.match(/<update_tasks>([\s\S]*?)<\/update_tasks>/)
+  if (!match) return { displayText: raw, taskUpdates: null }
+  try {
+    const taskUpdates = JSON.parse(match[1]) as ParsedTaskUpdate[]
+    const displayText = raw.replace(/<update_tasks>[\s\S]*?<\/update_tasks>/, '').trim()
+    return { displayText, taskUpdates }
+  } catch {
+    const displayText = raw.replace(/<update_tasks>[\s\S]*?<\/update_tasks>/, '').trim()
+    return { displayText, taskUpdates: null }
+  }
+}
+
+function parseCreateProjectBlock(raw: string): { displayText: string; projectCreate: ParsedProjectCreate | null } {
+  const match = raw.match(/<create_project>([\s\S]*?)<\/create_project>/)
+  if (!match) return { displayText: raw, projectCreate: null }
+  try {
+    const projectCreate = JSON.parse(match[1]) as ParsedProjectCreate
+    const displayText = raw.replace(/<create_project>[\s\S]*?<\/create_project>/, '').trim()
+    return { displayText, projectCreate }
+  } catch {
+    const displayText = raw.replace(/<create_project>[\s\S]*?<\/create_project>/, '').trim()
+    return { displayText, projectCreate: null }
+  }
+}
+
+// While streaming, hide everything from any action block tag onward so raw JSON never shows
 function streamingDisplayText(raw: string): string {
-  const idx = raw.indexOf('<tasks>')
-  return idx === -1 ? raw : raw.slice(0, idx).trimEnd()
+  const markers = ['<tasks>', '<update_tasks>', '<create_project>']
+  let cutAt = raw.length
+  for (const m of markers) {
+    const idx = raw.indexOf(m)
+    if (idx !== -1 && idx < cutAt) cutAt = idx
+  }
+  return cutAt === raw.length ? raw : raw.slice(0, cutAt).trimEnd()
 }
 
 const DISTILL_EVERY = 10
 
-export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose }: Props) {
+export default function BoardChatPanel({ projects, dirs, sessions, onCreateTasks, onUpdateTasks, onCreateProject, onClose, isMobile }: Props) {
   const [messages, setMessages] = useState<ChatMsg[]>([])
   const [input, setInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -141,6 +183,16 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
           context,
           projects: projects.map((p) => ({ id: p.id, title: p.title })),
           columns: dirs.map((d) => ({ id: d.id, label: d.label })),
+          sessions: sessions
+            .filter((s) => !s.checked)
+            .map((s) => ({
+              id: s.id,
+              title: s.title,
+              projectId: s.projectId ?? null,
+              columnId: s.columnId ?? null,
+              dueDate: s.dueDate ?? null,
+              startTime: s.startTime ?? null,
+            })),
           today: localDateStr(new Date()),
           memory: memoryRef.current || undefined,
         }),
@@ -174,12 +226,38 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
         )
       }
 
-      // Stream finished — parse for tasks
-      const { displayText, tasks } = parseTasksBlock(accumulated)
+      // Stream finished — parse all action blocks in priority order
+      let displayText = accumulated
+      let tasks: ParsedTask[] | null = null
+      let taskUpdates: ParsedTaskUpdate[] | null = null
+      let projectCreate: ParsedProjectCreate | null = null
+
+      if (accumulated.includes('<tasks>')) {
+        const parsed = parseTasksBlock(displayText)
+        displayText = parsed.displayText
+        tasks = parsed.tasks
+      }
+      if (accumulated.includes('<update_tasks>')) {
+        const parsed = parseUpdateTasksBlock(displayText)
+        displayText = parsed.displayText
+        taskUpdates = parsed.taskUpdates
+      }
+      if (accumulated.includes('<create_project>')) {
+        const parsed = parseCreateProjectBlock(displayText)
+        displayText = parsed.displayText
+        projectCreate = parsed.projectCreate
+      }
+
       setMessages((prev) =>
         prev.map((m) =>
           m.id === assistantId
-            ? { ...m, text: displayText, tasks: tasks ?? undefined }
+            ? {
+                ...m,
+                text: displayText,
+                tasks: tasks ?? undefined,
+                taskUpdates: taskUpdates ?? undefined,
+                projectCreate: projectCreate ?? undefined,
+              }
             : m
         )
       )
@@ -214,6 +292,16 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
     }
   }
 
+  const handleNewConversation = async () => {
+    await clearChatHistory()
+    userMsgCountRef.current = 0
+    setMessages([{
+      id: 'welcome',
+      role: 'assistant',
+      text: '你好！你可以：\n• 粘贴一段 todo 列表，让我帮你生成 card\n• 问我关于任务或项目的问题',
+    }])
+  }
+
   const handleAddTasks = (msgId: string, tasks: ParsedTask[]) => {
     onCreateTasks(tasks)
     setMessages((prev) =>
@@ -221,19 +309,35 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
     )
   }
 
+  const handleApplyUpdates = (msgId: string, updates: ParsedTaskUpdate[]) => {
+    onUpdateTasks(updates)
+    setMessages((prev) =>
+      prev.map((m) => m.id === msgId ? { ...m, taskUpdatesApplied: true } : m)
+    )
+  }
+
+  const handleApplyProjectCreate = (msgId: string, title: string) => {
+    onCreateProject(title)
+    setMessages((prev) =>
+      prev.map((m) => m.id === msgId ? { ...m, projectCreateApplied: true } : m)
+    )
+  }
+
   const projectMap = Object.fromEntries(projects.map((p) => [p.id, p]))
   const dirMap = Object.fromEntries(dirs.map((d) => [d.id, d]))
+  const sessionMap = Object.fromEntries(sessions.map((s) => [s.id, s]))
 
   return (
     <div style={{
-      width: 320,
+      width: isMobile ? '100%' : 320,
       flex: 1,
-      borderLeft: '1px solid #e0ddd9',
+      borderLeft: isMobile ? 'none' : '1px solid #e0ddd9',
+      borderTop: isMobile ? '1px solid #e0ddd9' : 'none',
       background: '#faf9f7',
       display: 'flex',
       flexDirection: 'column',
       overflow: 'hidden',
-      animation: 'slideInRight 180ms ease',
+      animation: isMobile ? 'slideInUp 200ms ease' : 'slideInRight 180ms ease',
     }}>
       {/* Header */}
       <div style={{
@@ -249,6 +353,18 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
           <div style={{ fontSize: 18, fontWeight: 600, color: '#1a1a1a' }}>Board Assistant</div>
           <div style={{ fontSize: 12, color: '#999', marginTop: 2 }}>AI 对话助手</div>
         </div>
+        <button
+          onClick={handleNewConversation}
+          style={{
+            background: 'none', border: '1px solid #e0ddd9', color: '#aaa',
+            fontSize: 11, cursor: 'pointer', padding: '3px 8px', borderRadius: 6,
+          }}
+          title="清除历史，开始新对话"
+          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#555'; (e.currentTarget as HTMLElement).style.borderColor = '#bbb' }}
+          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#aaa'; (e.currentTarget as HTMLElement).style.borderColor = '#e0ddd9' }}
+        >
+          新对话
+        </button>
         <button
           onClick={onClose}
           style={{
@@ -295,6 +411,119 @@ export default function BoardChatPanel({ projects, dirs, onCreateTasks, onClose 
                     {msg.text}
                     {isLoading && msg.id === messages[messages.length - 1]?.id && !msg.tasks && (
                       <span style={{ color: '#bbb', marginLeft: 2, animation: 'pulse 1s infinite' }}>▋</span>
+                    )}
+                  </div>
+                )}
+
+                {/* Task update preview */}
+                {msg.taskUpdates && msg.taskUpdates.length > 0 && (
+                  <div style={{
+                    background: 'white', border: '1px solid #e8e5e0',
+                    borderRadius: 10, overflow: 'hidden',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', maxWidth: '92%',
+                  }}>
+                    <div style={{
+                      padding: '8px 12px 6px', fontSize: 11, fontWeight: 600, color: '#999',
+                      textTransform: 'uppercase', letterSpacing: '.05em',
+                      borderBottom: '1px solid #f0ede9',
+                    }}>
+                      {msg.taskUpdatesApplied ? `✓ ${msg.taskUpdates.length} tasks updated` : `${msg.taskUpdates.length} task update${msg.taskUpdates.length > 1 ? 's' : ''}`}
+                    </div>
+                    {!msg.taskUpdatesApplied && (
+                      <>
+                        <div style={{ padding: '6px 0' }}>
+                          {msg.taskUpdates.map((upd, i) => {
+                            const existing = sessionMap[upd.id]
+                            const name = existing?.title ?? upd.id
+                            const proj = upd.projectId ? projectMap[upd.projectId] : null
+                            const col = upd.columnId ? dirMap[upd.columnId] : null
+                            return (
+                              <div key={i} style={{
+                                padding: '5px 12px', display: 'flex', alignItems: 'flex-start', gap: 7,
+                                borderLeft: '3px solid #6ea8c8', marginLeft: 8, marginBottom: 2,
+                              }}>
+                                <div style={{ width: 12, height: 12, borderRadius: 3, marginTop: 2, flexShrink: 0, border: '1.5px solid #6ea8c8', background: 'transparent' }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: 12, color: '#1a1a1a', lineHeight: 1.4 }}>
+                                    {upd.title ? <><span style={{ textDecoration: 'line-through', color: '#aaa' }}>{name}</span> → {upd.title}</> : name}
+                                  </div>
+                                  <div style={{ display: 'flex', gap: 5, marginTop: 3, flexWrap: 'wrap' }}>
+                                    {proj && <span style={{ fontSize: 10, color: proj.color, fontWeight: 600, background: `${proj.color}18`, padding: '1px 5px', borderRadius: 4 }}>{proj.title}</span>}
+                                    {col && <span style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 5px', borderRadius: 4 }}>{col.label}</span>}
+                                    {upd.dueDate !== undefined && <span style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 5px', borderRadius: 4 }}>DDL: {upd.dueDate ?? '清除'}</span>}
+                                    {upd.startTime && upd.estimatedMins && (
+                                      <span style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 5px', borderRadius: 4 }}>
+                                        {upd.startTime}–{(() => {
+                                          const [h, m] = upd.startTime.split(':').map(Number)
+                                          const end = new Date(0, 0, 0, h, m + upd.estimatedMins)
+                                          return `${end.getHours()}:${String(end.getMinutes()).padStart(2, '0')}`
+                                        })()}
+                                      </span>
+                                    )}
+                                    {upd.startTime && !upd.estimatedMins && <span style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 5px', borderRadius: 4 }}>{upd.startTime}</span>}
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          })}
+                        </div>
+                        <div style={{ padding: '8px 12px 10px' }}>
+                          <button
+                            onClick={() => handleApplyUpdates(msg.id, msg.taskUpdates!)}
+                            style={{
+                              width: '100%', padding: '7px 0', background: '#1a1a1a', color: 'white',
+                              border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85' }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                          >
+                            Apply {msg.taskUpdates.length} update{msg.taskUpdates.length > 1 ? 's' : ''}
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {msg.taskUpdatesApplied && (
+                      <div style={{ padding: '8px 12px 10px', fontSize: 12, color: '#4caf86' }}>已更新 ✓</div>
+                    )}
+                  </div>
+                )}
+
+                {/* Project creation preview */}
+                {msg.projectCreate && (
+                  <div style={{
+                    background: 'white', border: '1px solid #e8e5e0',
+                    borderRadius: 10, overflow: 'hidden',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)', maxWidth: '92%',
+                  }}>
+                    <div style={{
+                      padding: '8px 12px 6px', fontSize: 11, fontWeight: 600, color: '#999',
+                      textTransform: 'uppercase', letterSpacing: '.05em',
+                      borderBottom: '1px solid #f0ede9',
+                    }}>
+                      {msg.projectCreateApplied ? '✓ project created' : 'new project'}
+                    </div>
+                    {!msg.projectCreateApplied && (
+                      <>
+                        <div style={{ padding: '8px 12px 4px', fontSize: 13, color: '#1a1a1a', fontWeight: 500 }}>
+                          {msg.projectCreate.title}
+                        </div>
+                        <div style={{ padding: '6px 12px 10px' }}>
+                          <button
+                            onClick={() => handleApplyProjectCreate(msg.id, msg.projectCreate!.title)}
+                            style={{
+                              width: '100%', padding: '7px 0', background: '#1a1a1a', color: 'white',
+                              border: 'none', borderRadius: 7, fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                            }}
+                            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0.85' }}
+                            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.opacity = '1' }}
+                          >
+                            Create project
+                          </button>
+                        </div>
+                      </>
+                    )}
+                    {msg.projectCreateApplied && (
+                      <div style={{ padding: '8px 12px 10px', fontSize: 12, color: '#4caf86' }}>项目已创建 ✓</div>
                     )}
                   </div>
                 )}

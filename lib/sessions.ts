@@ -27,11 +27,13 @@ function rowToSession(row: Record<string, unknown>): SessionMeta {
     checked: (row.checked as boolean) ?? false,
     checkedAt: (row.checked_at as number | null) ?? undefined,
     dueDate: (row.due_date as string | null) ?? undefined,
+    startTime: (row.start_time as string | null) ?? undefined,
     estimatedMins: (row.estimated_mins as number | null) ?? undefined,
     weekOrder: (row.week_order as number | null) ?? undefined,
     recurringGroupId: (row.recurring_group_id as string | null) ?? undefined,
     weeklyTarget: (row.weekly_target as number | null) ?? undefined,
     hasCanvas: (row.has_canvas as boolean | null) ?? false,
+    deletedAt: (row.deleted_at as number | null) ?? undefined,
   }
 }
 
@@ -41,6 +43,7 @@ export async function loadSessionsIndex(): Promise<SessionMeta[]> {
   const { data, error } = await supabase
     .from('sessions')
     .select('*')
+    .is('deleted_at', null)
     .order('updated_at', { ascending: false })
   if (error) { console.error('loadSessionsIndex:', error); return [] }
   return (data ?? []).map(rowToSession)
@@ -76,10 +79,52 @@ export async function createSession(
   return session
 }
 
+// Soft-delete: marks deleted_at so the item disappears from normal queries
+// but can be restored from the trash panel.
+export async function softDeleteSession(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ deleted_at: Date.now(), updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('softDeleteSession:', error)
+}
+
+// Hard-delete: permanently removes from DB (used from trash panel).
 export async function deleteSession(id: string): Promise<void> {
   const { error } = await supabase.from('sessions').delete().eq('id', id)
   if (error) console.error('deleteSession:', error)
-  // canvas_states row cascades automatically
+}
+
+// Restore a soft-deleted session back to the board.
+export async function restoreSession(id: string): Promise<void> {
+  const { error } = await supabase
+    .from('sessions')
+    .update({ deleted_at: null, updated_at: Date.now() })
+    .eq('id', id)
+  if (error) console.error('restoreSession:', error)
+}
+
+// Hard-delete soft-deleted sessions older than 7 days. Call once on app mount.
+export async function cleanupOldTrashedSessions(): Promise<void> {
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000
+  const { error } = await supabase
+    .from('sessions')
+    .delete()
+    .not('deleted_at', 'is', null)
+    .lt('deleted_at', cutoff)
+  if (error) console.error('cleanupOldTrashedSessions:', error)
+}
+
+// Load sessions that have been soft-deleted, most recently deleted first.
+export async function loadTrashedSessions(): Promise<SessionMeta[]> {
+  const { data, error } = await supabase
+    .from('sessions')
+    .select('*')
+    .not('deleted_at', 'is', null)
+    .order('deleted_at', { ascending: false })
+    .limit(50)
+  if (error) { console.error('loadTrashedSessions:', error); return [] }
+  return (data ?? []).map(rowToSession)
 }
 
 export async function updateSessionTitle(id: string, title: string): Promise<void> {
@@ -164,6 +209,30 @@ export async function touchSession(id: string): Promise<void> {
     .update({ updated_at: Date.now() })
     .eq('id', id)
   if (error) console.error('touchSession:', error)
+}
+
+// General-purpose field updater used by the AI assistant for task modifications.
+// Only writes fields that are explicitly present in `updates`.
+export async function updateSessionFull(
+  id: string,
+  updates: Partial<{
+    title: string
+    projectId: string | null
+    columnId: string | null
+    dueDate: string | null
+    startTime: string | null
+    estimatedMins: number | null
+  }>
+): Promise<void> {
+  const dbUpdate: Record<string, unknown> = { updated_at: Date.now() }
+  if ('title' in updates) dbUpdate.title = (updates.title ?? '').slice(0, 60) || 'New session'
+  if ('projectId' in updates) dbUpdate.project_id = updates.projectId ?? null
+  if ('columnId' in updates) dbUpdate.column_id = updates.columnId ?? null
+  if ('dueDate' in updates) dbUpdate.due_date = updates.dueDate ?? null
+  if ('startTime' in updates) dbUpdate.start_time = updates.startTime ?? null
+  if ('estimatedMins' in updates) dbUpdate.estimated_mins = updates.estimatedMins ?? null
+  const { error } = await supabase.from('sessions').update(dbUpdate).eq('id', id)
+  if (error) console.error('updateSessionFull:', error)
 }
 
 export async function createRecurringSessions(

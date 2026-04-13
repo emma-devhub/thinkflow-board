@@ -37,6 +37,11 @@ export async function saveChatMessage(
   if (error) console.error('saveChatMessage:', error)
 }
 
+export async function clearChatHistory(): Promise<void> {
+  const { error } = await supabase.from('chat_messages').delete().neq('id', '00000000-0000-0000-0000-000000000000')
+  if (error) console.error('clearChatHistory:', error)
+}
+
 export async function loadMemory(): Promise<string> {
   const { data, error } = await supabase
     .from('user_memory')
