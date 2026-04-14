@@ -64,6 +64,13 @@ function getRecurringProgress(
   return { done, total: group.length }
 }
 
+function formatTimeRange(startTime: string, estimatedMins?: number | null): string {
+  if (!estimatedMins) return startTime
+  const [h, m] = startTime.split(':').map(Number)
+  const end = new Date(0, 0, 0, h, m + estimatedMins)
+  return `${startTime}–${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
@@ -678,43 +685,17 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
         )}
       </div>
 
-      {/* Estimated time row — temporarily commented out
-      <div style={{ marginTop: 5, paddingLeft: 23, display: 'flex', alignItems: 'center', gap: 4 }}>
-        <span style={{ fontSize: 10, color: '#bbb' }}>⏱</span>
-        {editingTime ? (
-          <input
-            autoFocus
-            type="number"
-            min={1}
-            value={timeDraft}
-            onChange={(e) => setTimeDraft(e.target.value)}
-            onBlur={commitTime}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') { e.preventDefault(); commitTime() }
-              if (e.key === 'Escape') { setTimeDraft(String(session.estimatedMins ?? '')); setEditingTime(false) }
-            }}
-            onClick={(e) => e.stopPropagation()}
-            placeholder="min"
-            style={{
-              width: 52, fontSize: 11, border: 'none', outline: 'none',
-              borderBottom: '1px solid #ccc', background: 'transparent',
-              color: '#888', padding: '0 0 1px',
-            }}
-          />
-        ) : (
-          <span
-            onClick={(e) => { e.stopPropagation(); setTimeDraft(String(session.estimatedMins ?? '')); setEditingTime(true) }}
-            style={{
-              fontSize: 11, color: session.estimatedMins ? '#888' : '#ccc',
-              cursor: 'pointer', borderRadius: 3, padding: '0 2px',
-            }}
-            title="点击设置预计时长"
-          >
-            {session.estimatedMins ? `${session.estimatedMins} min` : '+ 时长'}
+      {/* Time range pill */}
+      {session.startTime && (
+        <div style={{ marginTop: 4, paddingLeft: 23 }}>
+          <span style={{
+            fontSize: 10, color: '#888', background: '#f0ede9',
+            padding: '1px 6px', borderRadius: 4,
+          }}>
+            ⏱ {formatTimeRange(session.startTime, session.estimatedMins)}
           </span>
-        )}
-      </div>
-      */}
+        </div>
+      )}
     </div>
   )
 }

@@ -424,6 +424,27 @@ function ColHeader({ dir, count, editing, draft, onDraftChange, onStartEdit, onC
   )
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatDueDateShort(dateStr: string): string {
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  const todayStr = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+  const tom = new Date(now); tom.setDate(now.getDate() + 1)
+  const tomStr = `${tom.getFullYear()}-${pad(tom.getMonth() + 1)}-${pad(tom.getDate())}`
+  if (dateStr === todayStr) return '今天'
+  if (dateStr === tomStr) return '明天'
+  const [, m, d] = dateStr.split('-')
+  return `${parseInt(m)}/${parseInt(d)}`
+}
+
+function formatTimeRange(startTime: string, estimatedMins?: number | null): string {
+  if (!estimatedMins) return startTime
+  const [h, m] = startTime.split(':').map(Number)
+  const end = new Date(0, 0, 0, h, m + estimatedMins)
+  return `${startTime}–${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`
+}
+
 // ── Card ──────────────────────────────────────────────────────────────────────
 function KanbanCard({ session, project, showProject, recurringProgress, onOpen, onDelete, onToggleChecked, onRename, onDragStart }: {
   session: SessionMeta
@@ -552,11 +573,33 @@ function KanbanCard({ session, project, showProject, recurringProgress, onOpen, 
         )}
       </div>
 
-      {/* Project tag — below title, shown on click (no indicator) */}
+      {/* Project tag — below title, shown on click */}
       {showProject && project && tagOpen && !editing && (
         <div style={{ marginTop: 5, paddingLeft: 23, display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 10, fontWeight: 600, color: project.color }}>
           <span style={{ width: 5, height: 5, borderRadius: '50%', background: project.color, display: 'inline-block' }} />
           {project.title}
+        </div>
+      )}
+
+      {/* Due date + time range pills */}
+      {(session.dueDate || session.startTime) && !editing && (
+        <div style={{ marginTop: 5, paddingLeft: 23, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+          {session.dueDate && (
+            <span style={{
+              fontSize: 10, color: '#888', background: '#f0ede9',
+              padding: '1px 6px', borderRadius: 4,
+            }}>
+              {formatDueDateShort(session.dueDate)}
+            </span>
+          )}
+          {session.startTime && (
+            <span style={{
+              fontSize: 10, color: '#888', background: '#f0ede9',
+              padding: '1px 6px', borderRadius: 4,
+            }}>
+              ⏱ {formatTimeRange(session.startTime, session.estimatedMins)}
+            </span>
+          )}
         </div>
       )}
     </div>
