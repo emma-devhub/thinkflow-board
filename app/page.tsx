@@ -230,6 +230,14 @@ export default function Home() {
     setView('canvas')
   }, [])
 
+  const handleUpdateTimeSlot = useCallback(async (id: string, startTime: string | null, estimatedMins: number | null) => {
+    updateSessionFull(id, { startTime, estimatedMins })
+    setSessions((prev) => prev.map((s) => s.id === id
+      ? { ...s, startTime: startTime ?? undefined, estimatedMins: estimatedMins ?? undefined }
+      : s
+    ))
+  }, [])
+
   const handleUpdateTasksFromAI = useCallback(async (updates: ParsedTaskUpdate[]) => {
     for (const upd of updates) {
       const { id, ...fields } = upd
@@ -286,6 +294,7 @@ export default function Home() {
               onToggleChecked={handleToggleChecked}
               onRenameSession={handleRenameSession}
               onCreateTasks={handleCreateTasks}
+              onUpdateTimeSlot={handleUpdateTimeSlot}
               boardView={boardView}
               onBoardViewChange={setBoardView}
               isChatOpen={isChatOpen}
@@ -304,6 +313,7 @@ export default function Home() {
               onRename={handleRenameSession}
               onOpenCanvas={handleOpenCanvas}
               onCreateTasks={handleCreateTasks}
+              onUpdateTimeSlot={handleUpdateTimeSlot}
               boardView={boardView}
               onBoardViewChange={setBoardView}
               isChatOpen={isChatOpen}

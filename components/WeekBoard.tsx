@@ -17,6 +17,7 @@ interface Props {
   onRename: (id: string, title: string) => void
   onOpenCanvas: (id: string) => void
   onCreateTasks: (tasks: ParsedTask[]) => void
+  onUpdateTimeSlot: (id: string, startTime: string | null, estimatedMins: number | null) => void
   boardView: 'domain' | 'week'
   onBoardViewChange: (v: 'domain' | 'week') => void
   isChatOpen: boolean
@@ -75,7 +76,7 @@ function formatTimeRange(startTime: string, estimatedMins?: number | null): stri
 export default function WeekBoard({
   sessions, projects, selectedProjectId,
   onSchedule, onReorderWeek, onCreateSession, onDelete, onToggleChecked, onRename, onOpenCanvas,
-  onCreateTasks, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen, dirs,
+  onCreateTasks, onUpdateTimeSlot, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen, dirs,
 }: Props) {
   const isMobile = useIsMobile()
   const weekDays = getWeekDays()
@@ -342,6 +343,7 @@ export default function WeekBoard({
                         onToggleChecked={(v) => onToggleChecked(s.id, v)}
                         onRename={(title) => onRename(s.id, title)}
                         onUpdateTime={(mins) => onSchedule(s.id, s.dueDate, mins)}
+                        onUpdateTimeSlot={(st, em) => onUpdateTimeSlot(s.id, st, em)}
                         onDragStart={() => { dragId.current = s.id }}
                         onDragOver={(e) => handleCardDragOver(e, s.id)}
                       />
@@ -485,6 +487,7 @@ export default function WeekBoard({
                         onToggleChecked={(v) => onToggleChecked(s.id, v)}
                         onRename={(title) => onRename(s.id, title)}
                         onUpdateTime={(mins) => onSchedule(s.id, s.dueDate, mins)}
+                        onUpdateTimeSlot={(st, em) => onUpdateTimeSlot(s.id, st, em)}
                         onDragStart={() => { dragId.current = s.id }}
                         onDragOver={(e) => handleCardDragOver(e, s.id)}
                       />
@@ -553,7 +556,7 @@ export default function WeekBoard({
 }
 
 // ── WeekCard ──────────────────────────────────────────────────────────────────
-function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onDragStart, onDragOver }: {
+function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onUpdateTimeSlot, onDragStart, onDragOver }: {
   session: SessionMeta
   project: Project | null | undefined
   recurringProgress: { done: number; total: number } | null
@@ -563,14 +566,45 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
   onToggleChecked: (v: boolean) => void
   onRename: (title: string) => void
   onUpdateTime: (mins: number | undefined) => void
+  onUpdateTimeSlot: (startTime: string | null, estimatedMins: number | null) => void
   onDragStart: () => void
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
 }) {
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
-  // const [editingTime, setEditingTime] = useState(false)
-  // const [timeDraft, setTimeDraft] = useState(String(session.estimatedMins ?? ''))
+  const [editingTime, setEditingTime] = useState(false)
+  const [startDraft, setStartDraft] = useState('')
+  const [endDraft, setEndDraft] = useState('')
+
+  const openTimeEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setStartDraft(session.startTime ?? '')
+    if (session.startTime && session.estimatedMins) {
+      const [h, m] = session.startTime.split(':').map(Number)
+      const end = new Date(0, 0, 0, h, m + session.estimatedMins)
+      setEndDraft(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`)
+    } else {
+      setEndDraft('')
+    }
+    setEditingTime(true)
+  }
+
+  const commitTime = () => {
+    if (!startDraft) {
+      onUpdateTimeSlot(null, null)
+    } else {
+      let mins: number | null = null
+      if (endDraft && endDraft > startDraft) {
+        const [sh, sm] = startDraft.split(':').map(Number)
+        const [eh, em] = endDraft.split(':').map(Number)
+        const diff = (eh * 60 + em) - (sh * 60 + sm)
+        if (diff > 0) mins = diff
+      }
+      onUpdateTimeSlot(startDraft, mins)
+    }
+    setEditingTime(false)
+  }
 
   const accentColor = isOverdue ? '#e8a838' : (project?.color ?? '#ddd')
   const checked = !!session.checked
@@ -685,17 +719,30 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
         )}
       </div>
 
-      {/* Time range pill */}
-      {session.startTime && (
-        <div style={{ marginTop: 4, paddingLeft: 23 }}>
-          <span style={{
-            fontSize: 10, color: '#888', background: '#f0ede9',
-            padding: '1px 6px', borderRadius: 4,
-          }}>
+      {/* Time range — click to edit */}
+      <div style={{ marginTop: 4, paddingLeft: 23 }}>
+        {editingTime ? (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }} onClick={(e) => e.stopPropagation()}>
+            <input type="time" value={startDraft} onChange={(e) => setStartDraft(e.target.value)}
+              style={{ fontSize: 11, border: 'none', borderBottom: '1px solid #ccc', outline: 'none', background: 'transparent', color: '#555', width: 72, padding: '0 0 1px' }} />
+            <span style={{ fontSize: 10, color: '#bbb' }}>–</span>
+            <input type="time" value={endDraft} onChange={(e) => setEndDraft(e.target.value)}
+              style={{ fontSize: 11, border: 'none', borderBottom: '1px solid #ccc', outline: 'none', background: 'transparent', color: '#555', width: 72, padding: '0 0 1px' }} />
+            <button onClick={commitTime} style={{ background: 'none', border: 'none', color: '#4caf86', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}>✓</button>
+            <button onClick={(e) => { e.stopPropagation(); setEditingTime(false) }} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: 11, cursor: 'pointer', padding: '0 2px' }}>✕</button>
+          </div>
+        ) : session.startTime ? (
+          <span onClick={openTimeEdit} style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 6px', borderRadius: 4, cursor: 'pointer' }}
+            title="点击编辑时间段">
             ⏱ {formatTimeRange(session.startTime, session.estimatedMins)}
           </span>
-        </div>
-      )}
+        ) : hovered ? (
+          <span onClick={openTimeEdit} style={{ fontSize: 10, color: '#ccc', cursor: 'pointer', padding: '1px 2px' }}
+            title="添加时间段">
+            + 时段
+          </span>
+        ) : null}
+      </div>
     </div>
   )
 }

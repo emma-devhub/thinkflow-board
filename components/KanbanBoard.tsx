@@ -16,6 +16,7 @@ interface Props {
   onToggleChecked: (id: string, checked: boolean) => void
   onRenameSession: (id: string, title: string) => void
   onCreateTasks: (tasks: ParsedTask[]) => void
+  onUpdateTimeSlot: (id: string, startTime: string | null, estimatedMins: number | null) => void
   boardView: 'domain' | 'week'
   onBoardViewChange: (v: 'domain' | 'week') => void
   isChatOpen: boolean
@@ -41,7 +42,7 @@ function getRecurringProgress(
 export default function KanbanBoard({
   sessions, projects, selectedProjectId,
   onOpenCanvas, onCreateSession, onDeleteSession, onMoveSession, onToggleChecked, onRenameSession,
-  onCreateTasks, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen,
+  onCreateTasks, onUpdateTimeSlot, boardView, onBoardViewChange, isChatOpen, onToggleChatOpen,
 }: Props) {
   const isMobile = useIsMobile()
   const [dirs, setDirs] = useState<Direction[]>([])
@@ -227,6 +228,7 @@ export default function KanbanBoard({
                       onDelete={() => onDeleteSession(s.id)}
                       onToggleChecked={(v) => onToggleChecked(s.id, v)}
                       onRename={(t) => onRenameSession(s.id, t)}
+                      onUpdateTimeSlot={(st, em) => onUpdateTimeSlot(s.id, st, em)}
                       onDragStart={() => { dragId.current = s.id }}
                     />
                   )
@@ -300,6 +302,7 @@ export default function KanbanBoard({
                       onDelete={() => onDeleteSession(s.id)}
                       onToggleChecked={(v) => onToggleChecked(s.id, v)}
                       onRename={(title) => onRenameSession(s.id, title)}
+                      onUpdateTimeSlot={(st, em) => onUpdateTimeSlot(s.id, st, em)}
                       onDragStart={() => { dragId.current = s.id }}
                     />
                   )
@@ -446,7 +449,7 @@ function formatTimeRange(startTime: string, estimatedMins?: number | null): stri
 }
 
 // ── Card ──────────────────────────────────────────────────────────────────────
-function KanbanCard({ session, project, showProject, recurringProgress, onOpen, onDelete, onToggleChecked, onRename, onDragStart }: {
+function KanbanCard({ session, project, showProject, recurringProgress, onOpen, onDelete, onToggleChecked, onRename, onUpdateTimeSlot, onDragStart }: {
   session: SessionMeta
   project: Project | null | undefined
   showProject: boolean
@@ -455,14 +458,47 @@ function KanbanCard({ session, project, showProject, recurringProgress, onOpen, 
   onDelete: () => void
   onToggleChecked: (v: boolean) => void
   onRename: (title: string) => void
+  onUpdateTimeSlot: (startTime: string | null, estimatedMins: number | null) => void
   onDragStart: () => void
 }) {
   const [hovered, setHovered] = useState(false)
   const [tagOpen, setTagOpen] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
+  const [editingTime, setEditingTime] = useState(false)
+  const [startDraft, setStartDraft] = useState('')
+  const [endDraft, setEndDraft] = useState('')
   const accentColor = project?.color ?? '#ddd'
   const checked = !!session.checked
+
+  const openTimeEdit = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setStartDraft(session.startTime ?? '')
+    if (session.startTime && session.estimatedMins) {
+      const [h, m] = session.startTime.split(':').map(Number)
+      const end = new Date(0, 0, 0, h, m + session.estimatedMins)
+      setEndDraft(`${String(end.getHours()).padStart(2, '0')}:${String(end.getMinutes()).padStart(2, '0')}`)
+    } else {
+      setEndDraft('')
+    }
+    setEditingTime(true)
+  }
+
+  const commitTime = () => {
+    if (!startDraft) {
+      onUpdateTimeSlot(null, null)
+    } else {
+      let mins: number | null = null
+      if (endDraft && endDraft > startDraft) {
+        const [sh, sm] = startDraft.split(':').map(Number)
+        const [eh, em] = endDraft.split(':').map(Number)
+        const diff = (eh * 60 + em) - (sh * 60 + sm)
+        if (diff > 0) mins = diff
+      }
+      onUpdateTimeSlot(startDraft, mins)
+    }
+    setEditingTime(false)
+  }
 
   const commitEdit = () => {
     const t = draft.trim()
@@ -581,25 +617,35 @@ function KanbanCard({ session, project, showProject, recurringProgress, onOpen, 
         </div>
       )}
 
-      {/* Due date + time range pills */}
-      {(session.dueDate || session.startTime) && !editing && (
-        <div style={{ marginTop: 5, paddingLeft: 23, display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+      {/* Due date + time range */}
+      {!editing && (
+        <div style={{ marginTop: 5, paddingLeft: 23, display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           {session.dueDate && (
-            <span style={{
-              fontSize: 10, color: '#888', background: '#f0ede9',
-              padding: '1px 6px', borderRadius: 4,
-            }}>
+            <span style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 6px', borderRadius: 4 }}>
               {formatDueDateShort(session.dueDate)}
             </span>
           )}
-          {session.startTime && (
-            <span style={{
-              fontSize: 10, color: '#888', background: '#f0ede9',
-              padding: '1px 6px', borderRadius: 4,
-            }}>
+          {editingTime ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 3 }} onClick={(e) => e.stopPropagation()}>
+              <input type="time" value={startDraft} onChange={(e) => setStartDraft(e.target.value)}
+                style={{ fontSize: 11, border: 'none', borderBottom: '1px solid #ccc', outline: 'none', background: 'transparent', color: '#555', width: 72, padding: '0 0 1px' }} />
+              <span style={{ fontSize: 10, color: '#bbb' }}>–</span>
+              <input type="time" value={endDraft} onChange={(e) => setEndDraft(e.target.value)}
+                style={{ fontSize: 11, border: 'none', borderBottom: '1px solid #ccc', outline: 'none', background: 'transparent', color: '#555', width: 72, padding: '0 0 1px' }} />
+              <button onClick={commitTime} style={{ background: 'none', border: 'none', color: '#4caf86', fontSize: 12, cursor: 'pointer', padding: '0 2px' }}>✓</button>
+              <button onClick={(e) => { e.stopPropagation(); setEditingTime(false) }} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: 11, cursor: 'pointer', padding: '0 2px' }}>✕</button>
+            </div>
+          ) : session.startTime ? (
+            <span onClick={openTimeEdit} style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 6px', borderRadius: 4, cursor: 'pointer' }}
+              title="点击编辑时间段">
               ⏱ {formatTimeRange(session.startTime, session.estimatedMins)}
             </span>
-          )}
+          ) : hovered ? (
+            <span onClick={openTimeEdit} style={{ fontSize: 10, color: '#ccc', cursor: 'pointer', padding: '1px 2px', borderRadius: 4 }}
+              title="添加时间段">
+              + 时段
+            </span>
+          ) : null}
         </div>
       )}
     </div>
