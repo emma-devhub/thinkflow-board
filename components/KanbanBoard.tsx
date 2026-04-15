@@ -168,18 +168,6 @@ export default function KanbanBoard({
             </button>
           ))}
           <button
-            onClick={() => setAddingNewDir(true)}
-            style={{
-              padding: '7px 14px', borderRadius: 8,
-              border: '1px solid #ddd', background: 'white', fontSize: 12,
-              color: '#444', cursor: 'pointer',
-            }}
-            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.background = '#f5f5f5' }}
-            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.background = 'white' }}
-          >
-            + New Focus
-          </button>
-          <button
             onClick={onToggleChatOpen}
             style={{
               padding: '7px 14px', borderRadius: 8, fontSize: 12, cursor: 'pointer',
@@ -344,16 +332,16 @@ export default function KanbanBoard({
           )
         })}
 
-        {/* New direction inline input */}
-        {addingNewDir && (
-          <div style={{ width: 240, flexShrink: 0, paddingTop: 2 }}>
+        {/* Add Focus — ghost column at the right edge */}
+        {!isMobile && (addingNewDir ? (
+          <div style={{ width: 200, flexShrink: 0, paddingTop: 2 }}>
             <input
               autoFocus
               value={newDirTitle}
               onChange={(e) => setNewDirTitle(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') addDirection(); if (e.key === 'Escape') { setAddingNewDir(false); setNewDirTitle('') } }}
               onBlur={addDirection}
-              placeholder="Direction name…"
+              placeholder="Focus name…"
               style={{
                 width: '100%', border: '1px solid #ccc', borderRadius: 8,
                 padding: '8px 12px', fontSize: 13, outline: 'none',
@@ -361,7 +349,24 @@ export default function KanbanBoard({
               }}
             />
           </div>
-        )}
+        ) : (
+          <div
+            onClick={() => setAddingNewDir(true)}
+            style={{ width: 32, flexShrink: 0, display: 'flex', alignItems: 'flex-start', paddingTop: 2, cursor: 'pointer' }}
+            title="Add new focus"
+          >
+            <div
+              style={{
+                width: 28, height: 28, borderRadius: 7,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: '#ccc', fontSize: 18, lineHeight: 1,
+                transition: 'color 120ms, background 120ms',
+              }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = '#888'; (e.currentTarget as HTMLElement).style.background = '#e8e5e0' }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = '#ccc'; (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >+</div>
+          </div>
+        ))}
       </div>
       </div>{/* end main board area */}
 
