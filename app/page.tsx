@@ -56,6 +56,7 @@ export default function Home() {
   const [canvasSessionId, setCanvasSessionId] = useState<string>('')
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [isChatOpen, setIsChatOpen] = useState(false)
+  const [isProjectDrawerOpen, setIsProjectDrawerOpen] = useState(false)
   const [trash, setTrash] = useState<SessionMeta[]>([])
   const [isTrashOpen, setIsTrashOpen] = useState(false)
   const [isTrashLoading, setIsTrashLoading] = useState(false)
@@ -368,6 +369,107 @@ export default function Home() {
                 />
               </div>
             )
+          )}
+
+          {/* Mobile: floating project filter button */}
+          {isMobile && (
+            <button
+              onClick={() => setIsProjectDrawerOpen(true)}
+              style={{
+                position: 'fixed', top: 14, left: 12, zIndex: 50,
+                background: 'white', border: '1px solid #e0ddd9',
+                borderRadius: 20, padding: '6px 12px 6px 10px',
+                fontSize: 12, color: '#444', cursor: 'pointer',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              {selectedProjectId ? (
+                <>
+                  <span style={{
+                    width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+                    background: projects.find(p => p.id === selectedProjectId)?.color ?? '#ddd',
+                  }} />
+                  <span style={{ maxWidth: 90, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {projects.find(p => p.id === selectedProjectId)?.title ?? 'Project'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0 }}>
+                    <rect x="0.5" y="0.5" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                    <rect x="7" y="0.5" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                    <rect x="0.5" y="7" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                    <rect x="7" y="7" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                  </svg>
+                  All
+                </>
+              )}
+              <span style={{ color: '#bbb', fontSize: 10 }}>▾</span>
+            </button>
+          )}
+
+          {/* Mobile project drawer */}
+          {isMobile && isProjectDrawerOpen && (
+            <div
+              style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.25)' }}
+              onClick={() => setIsProjectDrawerOpen(false)}
+            >
+              <div
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  position: 'absolute', bottom: 0, left: 0, right: 0,
+                  background: 'white', borderRadius: '16px 16px 0 0',
+                  padding: '12px 0 32px',
+                  boxShadow: '0 -4px 24px rgba(0,0,0,0.12)',
+                  animation: 'slideInUp 200ms ease',
+                }}
+              >
+                {/* Drag handle */}
+                <div style={{ display: 'flex', justifyContent: 'center', paddingBottom: 12 }}>
+                  <div style={{ width: 36, height: 4, borderRadius: 2, background: '#ddd' }} />
+                </div>
+                <div style={{ padding: '0 8px 8px 16px', fontSize: 11, fontWeight: 600, letterSpacing: '.06em', textTransform: 'uppercase', color: '#aaa' }}>
+                  Projects
+                </div>
+                {/* All Projects */}
+                <div
+                  onClick={() => { setSelectedProjectId(null); setIsProjectDrawerOpen(false) }}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 10,
+                    padding: '10px 20px', cursor: 'pointer',
+                    background: selectedProjectId === null ? '#f5f3f0' : 'transparent',
+                    fontWeight: selectedProjectId === null ? 500 : 400,
+                  }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <rect x="0.5" y="0.5" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                    <rect x="7" y="0.5" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                    <rect x="0.5" y="7" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                    <rect x="7" y="7" width="4.5" height="4.5" rx="1" fill="#888" opacity=".7"/>
+                  </svg>
+                  <span style={{ fontSize: 14, color: '#1a1a1a' }}>All Projects</span>
+                  {selectedProjectId === null && <span style={{ marginLeft: 'auto', fontSize: 13, color: '#aaa' }}>✓</span>}
+                </div>
+                <div style={{ height: 1, background: '#f0ede9', margin: '4px 16px' }} />
+                {projects.map((p) => (
+                  <div
+                    key={p.id}
+                    onClick={() => { setSelectedProjectId(p.id); setIsProjectDrawerOpen(false) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 10,
+                      padding: '10px 20px', cursor: 'pointer',
+                      background: selectedProjectId === p.id ? '#f5f3f0' : 'transparent',
+                      fontWeight: selectedProjectId === p.id ? 500 : 400,
+                    }}
+                  >
+                    <div style={{ width: 10, height: 10, borderRadius: '50%', background: p.color, flexShrink: 0 }} />
+                    <span style={{ fontSize: 14, color: '#1a1a1a', flex: 1 }}>{p.title}</span>
+                    {selectedProjectId === p.id && <span style={{ fontSize: 13, color: '#aaa' }}>✓</span>}
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Trash button — floating, bottom-left of board area */}
