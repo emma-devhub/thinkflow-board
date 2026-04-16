@@ -570,6 +570,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
   onDragStart: () => void
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
 }) {
+  const isMobile = useIsMobile()
   const [hovered, setHovered] = useState(false)
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(session.title)
@@ -638,23 +639,26 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
         transform: hovered && !editing ? 'translateY(-1px)' : 'none',
         transition: 'box-shadow 120ms, transform 120ms',
         opacity: checked ? 0.65 : 1,
-        padding: '8px 10px',
+        padding: isMobile ? '12px 14px' : '8px 10px',
+        minHeight: isMobile ? 44 : undefined,
       }}
     >
       {/* Checkbox + title row */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: isMobile ? 12 : 8 }}>
         <div
           onClick={(e) => { e.stopPropagation(); onToggleChecked(!checked) }}
           style={{
-            width: 15, height: 15, borderRadius: 3, flexShrink: 0, marginTop: 2,
-            border: checked ? 'none' : '1.5px solid #ccc',
+            width: isMobile ? 22 : 15, height: isMobile ? 22 : 15,
+            borderRadius: isMobile ? '50%' : 3,
+            flexShrink: 0, marginTop: isMobile ? 1 : 2,
+            border: checked ? 'none' : `${isMobile ? 2 : 1.5}px solid #ccc`,
             background: checked ? (accentColor !== '#ddd' ? accentColor : '#4caf86') : 'transparent',
             cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
             transition: 'background 120ms',
           }}
         >
           {checked && (
-            <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
+            <svg width={isMobile ? 12 : 9} height={isMobile ? 9 : 7} viewBox="0 0 9 7" fill="none">
               <path d="M1 3.5L3.5 6L8 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           )}
@@ -672,7 +676,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
             }}
             onClick={(e) => e.stopPropagation()}
             style={{
-              flex: 1, fontSize: 13, lineHeight: 1.4, border: 'none', outline: 'none',
+              flex: 1, fontSize: isMobile ? 16 : 13, lineHeight: 1.4, border: 'none', outline: 'none',
               borderBottom: `1px solid ${accentColor}`, background: 'transparent',
               color: '#1a1a1a', padding: '0 0 1px', width: '100%',
             }}
@@ -682,7 +686,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
             <span
               onClick={(e) => { e.stopPropagation(); setDraft(session.title); setEditing(true) }}
               style={{
-                fontSize: 13, lineHeight: 1.4,
+                fontSize: isMobile ? 16 : 13, lineHeight: 1.4,
                 textDecoration: checked ? 'line-through' : 'none',
                 color: checked ? '#aaa' : '#1a1a1a',
                 overflow: 'hidden', display: '-webkit-box',
@@ -692,7 +696,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
               {session.title}
             </span>
             {recurringProgress && (
-              <div style={{ marginTop: 3, fontSize: 10, color: recurringProgress.done >= recurringProgress.total ? '#4caf86' : (isOverdue ? '#e8a838' : '#aaa'), fontWeight: 600 }}>
+              <div style={{ marginTop: 3, fontSize: isMobile ? 12 : 10, color: recurringProgress.done >= recurringProgress.total ? '#4caf86' : (isOverdue ? '#e8a838' : '#aaa'), fontWeight: 600 }}>
                 {recurringProgress.done}/{recurringProgress.total}次
                 {isOverdue && !checked && <span style={{ marginLeft: 4, fontWeight: 400 }}>· 逾期</span>}
               </div>
@@ -720,7 +724,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
       </div>
 
       {/* Time range — click to edit */}
-      <div style={{ marginTop: 4, paddingLeft: 23 }}>
+      <div style={{ marginTop: isMobile ? 6 : 4, paddingLeft: isMobile ? 34 : 23 }}>
         {editingTime ? (
           <div style={{ display: 'flex', alignItems: 'center', gap: 3 }} onClick={(e) => e.stopPropagation()}>
             <input type="time" value={startDraft} onChange={(e) => setStartDraft(e.target.value)}
@@ -732,12 +736,12 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
             <button onClick={(e) => { e.stopPropagation(); setEditingTime(false) }} style={{ background: 'none', border: 'none', color: '#ccc', fontSize: 11, cursor: 'pointer', padding: '0 2px' }}>✕</button>
           </div>
         ) : session.startTime ? (
-          <span onClick={openTimeEdit} style={{ fontSize: 10, color: '#888', background: '#f0ede9', padding: '1px 6px', borderRadius: 4, cursor: 'pointer' }}
+          <span onClick={openTimeEdit} style={{ fontSize: isMobile ? 12 : 10, color: '#888', background: '#f0ede9', padding: isMobile ? '2px 8px' : '1px 6px', borderRadius: 4, cursor: 'pointer' }}
             title="点击编辑时间段">
             ⏱ {formatTimeRange(session.startTime, session.estimatedMins)}
           </span>
         ) : hovered ? (
-          <span onClick={openTimeEdit} style={{ fontSize: 10, color: '#ccc', cursor: 'pointer', padding: '1px 2px' }}
+          <span onClick={openTimeEdit} style={{ fontSize: isMobile ? 12 : 10, color: '#ccc', cursor: 'pointer', padding: '1px 2px' }}
             title="添加时间段">
             + 时段
           </span>
