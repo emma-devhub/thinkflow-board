@@ -87,16 +87,19 @@ export default function WeekBoard({
 
   // Scroll to today — horizontal on desktop, vertical on mobile
   useEffect(() => {
-    if (isMobile) {
-      setTimeout(() => todayColRef.current?.scrollIntoView({ block: 'start' }), 80)
-    } else {
-      const container = scrollContainerRef.current
-      const todayEl = todayColRef.current
-      if (!container || !todayEl) return
-      const containerRect = container.getBoundingClientRect()
-      const todayRect = todayEl.getBoundingClientRect()
-      container.scrollLeft += todayRect.left - containerRect.left - 24
-    }
+    const timer = setTimeout(() => {
+      if (isMobile) {
+        todayColRef.current?.scrollIntoView({ block: 'start' })
+      } else {
+        const container = scrollContainerRef.current
+        const todayEl = todayColRef.current
+        if (!container || !todayEl) return
+        const containerRect = container.getBoundingClientRect()
+        const todayRect = todayEl.getBoundingClientRect()
+        container.scrollLeft += todayRect.left - containerRect.left - 24
+      }
+    }, 80)
+    return () => clearTimeout(timer)
   }, [isMobile])
 
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
