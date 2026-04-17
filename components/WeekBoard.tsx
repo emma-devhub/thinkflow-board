@@ -93,6 +93,7 @@ export default function WeekBoard({
     offsetY: number
     cardEl: HTMLElement
     started: boolean
+    longPressTimer: ReturnType<typeof setTimeout> | null
   } | null>(null)
   const handleDropRef = useRef<(colKey: string) => void>(() => {})
 
@@ -113,30 +114,24 @@ export default function WeekBoard({
     return () => clearTimeout(timer)
   }, [isMobile])
 
-  // Touch drag — cross-column move on mobile
+  // Touch drag — long-press to initiate, then drag to target column
   useEffect(() => {
-    const THRESHOLD = 8
     const onMove = (e: TouchEvent) => {
       const ref = touchDragRef.current
       if (!ref) return
       const touch = e.touches[0]
+
       if (!ref.started) {
-        if (Math.hypot(touch.clientX - ref.startX, touch.clientY - ref.startY) < THRESHOLD) return
-        const rect = ref.cardEl.getBoundingClientRect()
-        const ghost = ref.cardEl.cloneNode(true) as HTMLElement
-        Object.assign(ghost.style, {
-          position: 'fixed', width: rect.width + 'px',
-          left: rect.left + 'px', top: rect.top + 'px',
-          opacity: '0.85', pointerEvents: 'none', zIndex: '9999', margin: '0',
-          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
-          transform: 'rotate(1.5deg) scale(1.02)', transition: 'none',
-        })
-        document.body.appendChild(ghost)
-        ref.ghost = ghost
-        ref.offsetX = touch.clientX - rect.left
-        ref.offsetY = touch.clientY - rect.top
-        ref.started = true
+        // Cancel long-press if finger moves more than 10px (user is scrolling)
+        if (Math.hypot(touch.clientX - ref.startX, touch.clientY - ref.startY) > 10) {
+          if (ref.longPressTimer) clearTimeout(ref.longPressTimer)
+          touchDragRef.current = null
+          dragId.current = null
+        }
+        return // don't block scroll until drag is confirmed
       }
+
+      // Drag active — prevent page scroll
       e.preventDefault()
       const { ghost, offsetX, offsetY } = ref
       if (!ghost) return
@@ -150,6 +145,7 @@ export default function WeekBoard({
     const onEnd = (e: TouchEvent) => {
       const ref = touchDragRef.current
       if (!ref) return
+      if (ref.longPressTimer) clearTimeout(ref.longPressTimer)
       if (ref.started && ref.ghost) {
         const touch = e.changedTouches[0]
         ref.ghost.style.visibility = 'hidden'
@@ -204,16 +200,37 @@ export default function WeekBoard({
   const getOrder = (s: SessionMeta) => s.weekOrder ?? s.createdAt
 
   const handleCardTouchStart = (e: React.TouchEvent<HTMLDivElement>, sessionId: string) => {
+    const touch = e.touches[0]
+    const cardEl = e.currentTarget
+    const longPressTimer = setTimeout(() => {
+      const ref = touchDragRef.current
+      if (!ref) return
+      const rect = cardEl.getBoundingClientRect()
+      const ghost = cardEl.cloneNode(true) as HTMLElement
+      Object.assign(ghost.style, {
+        position: 'fixed', width: rect.width + 'px',
+        left: rect.left + 'px', top: rect.top + 'px',
+        opacity: '0.85', pointerEvents: 'none', zIndex: '9999', margin: '0',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+        transform: 'rotate(1.5deg) scale(1.02)', transition: 'none',
+      })
+      document.body.appendChild(ghost)
+      ref.ghost = ghost
+      ref.offsetX = touch.clientX - rect.left
+      ref.offsetY = touch.clientY - rect.top
+      ref.started = true
+    }, 400)
     dragId.current = sessionId
     touchDragRef.current = {
       id: sessionId,
-      startX: e.touches[0].clientX,
-      startY: e.touches[0].clientY,
+      startX: touch.clientX,
+      startY: touch.clientY,
       ghost: null,
       offsetX: 0,
       offsetY: 0,
-      cardEl: e.currentTarget,
+      cardEl,
       started: false,
+      longPressTimer,
     }
   }
 
