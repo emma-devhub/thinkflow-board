@@ -84,6 +84,17 @@ export default function WeekBoard({
   const dragId = useRef<string | null>(null)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
   const todayColRef = useRef<HTMLDivElement>(null)
+  const touchDragRef = useRef<{
+    id: string
+    startX: number
+    startY: number
+    ghost: HTMLElement | null
+    offsetX: number
+    offsetY: number
+    cardEl: HTMLElement
+    started: boolean
+  } | null>(null)
+  const handleDropRef = useRef<(colKey: string) => void>(() => {})
 
   // Scroll to today — horizontal on desktop, vertical on mobile
   useEffect(() => {
@@ -101,6 +112,65 @@ export default function WeekBoard({
     }, 80)
     return () => clearTimeout(timer)
   }, [isMobile])
+
+  // Touch drag — cross-column move on mobile
+  useEffect(() => {
+    const THRESHOLD = 8
+    const onMove = (e: TouchEvent) => {
+      const ref = touchDragRef.current
+      if (!ref) return
+      const touch = e.touches[0]
+      if (!ref.started) {
+        if (Math.hypot(touch.clientX - ref.startX, touch.clientY - ref.startY) < THRESHOLD) return
+        const rect = ref.cardEl.getBoundingClientRect()
+        const ghost = ref.cardEl.cloneNode(true) as HTMLElement
+        Object.assign(ghost.style, {
+          position: 'fixed', width: rect.width + 'px',
+          left: rect.left + 'px', top: rect.top + 'px',
+          opacity: '0.85', pointerEvents: 'none', zIndex: '9999', margin: '0',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+          transform: 'rotate(1.5deg) scale(1.02)', transition: 'none',
+        })
+        document.body.appendChild(ghost)
+        ref.ghost = ghost
+        ref.offsetX = touch.clientX - rect.left
+        ref.offsetY = touch.clientY - rect.top
+        ref.started = true
+      }
+      e.preventDefault()
+      const { ghost, offsetX, offsetY } = ref
+      if (!ghost) return
+      ghost.style.left = (touch.clientX - offsetX) + 'px'
+      ghost.style.top = (touch.clientY - offsetY) + 'px'
+      ghost.style.visibility = 'hidden'
+      const el = document.elementFromPoint(touch.clientX, touch.clientY)
+      ghost.style.visibility = ''
+      setDragOverCol(el?.closest('[data-col-key]')?.getAttribute('data-col-key') ?? null)
+    }
+    const onEnd = (e: TouchEvent) => {
+      const ref = touchDragRef.current
+      if (!ref) return
+      if (ref.started && ref.ghost) {
+        const touch = e.changedTouches[0]
+        ref.ghost.style.visibility = 'hidden'
+        const el = document.elementFromPoint(touch.clientX, touch.clientY)
+        ref.ghost.style.visibility = ''
+        const colKey = el?.closest('[data-col-key]')?.getAttribute('data-col-key') ?? null
+        if (colKey) handleDropRef.current(colKey)
+        document.body.removeChild(ref.ghost)
+      }
+      touchDragRef.current = null
+      dragId.current = null
+      setDragOverCol(null)
+      setDragOverCardId(null)
+    }
+    document.addEventListener('touchmove', onMove, { passive: false })
+    document.addEventListener('touchend', onEnd)
+    return () => {
+      document.removeEventListener('touchmove', onMove)
+      document.removeEventListener('touchend', onEnd)
+    }
+  }, [])
 
   const [dragOverCol, setDragOverCol] = useState<string | null>(null)
   const [dragOverCardId, setDragOverCardId] = useState<string | null>(null)
@@ -132,6 +202,20 @@ export default function WeekBoard({
     s.dueDate && weekDateSet.has(s.dueDate) ? s.dueDate : 'unscheduled'
 
   const getOrder = (s: SessionMeta) => s.weekOrder ?? s.createdAt
+
+  const handleCardTouchStart = (e: React.TouchEvent<HTMLDivElement>, sessionId: string) => {
+    dragId.current = sessionId
+    touchDragRef.current = {
+      id: sessionId,
+      startX: e.touches[0].clientX,
+      startY: e.touches[0].clientY,
+      ghost: null,
+      offsetX: 0,
+      offsetY: 0,
+      cardEl: e.currentTarget,
+      started: false,
+    }
+  }
 
   const clearDragState = () => {
     setDragOverCol(null)
@@ -174,6 +258,7 @@ export default function WeekBoard({
     dragId.current = null
     clearDragState()
   }
+  handleDropRef.current = handleDrop
 
   // Parse @mentions in a title to extract projectId and columnId.
   // e.g. "去gym @LIFE @Vibe Coding" → { title: "去gym", projectId: <LIFE id>, columnId: <Vibe Coding id> }
@@ -284,6 +369,7 @@ export default function WeekBoard({
           return (
             <div
               key={col.key}
+              data-col-key={col.key}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDragState()
@@ -349,6 +435,7 @@ export default function WeekBoard({
                         onUpdateTimeSlot={(st, em) => onUpdateTimeSlot(s.id, st, em)}
                         onDragStart={() => { dragId.current = s.id }}
                         onDragOver={(e) => handleCardDragOver(e, s.id)}
+                        onTouchStart={(e) => handleCardTouchStart(e, s.id)}
                       />
                       {/* Drop indicator — below */}
                       {isTarget && dragOverCardPos === 'below' && (
@@ -429,6 +516,7 @@ export default function WeekBoard({
             <div
               key={col.key}
               ref={col.isToday ? todayColRef : undefined}
+              data-col-key={col.key}
               onDragOver={(e) => { e.preventDefault(); setDragOverCol(col.key) }}
               onDragLeave={(e) => {
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) clearDragState()
@@ -493,6 +581,7 @@ export default function WeekBoard({
                         onUpdateTimeSlot={(st, em) => onUpdateTimeSlot(s.id, st, em)}
                         onDragStart={() => { dragId.current = s.id }}
                         onDragOver={(e) => handleCardDragOver(e, s.id)}
+                        onTouchStart={(e) => handleCardTouchStart(e, s.id)}
                       />
                       {isTarget && dragOverCardPos === 'below' && (
                         <div style={{ height: 2, background: '#5578cc', borderRadius: 1, marginTop: 4 }} />
@@ -559,7 +648,7 @@ export default function WeekBoard({
 }
 
 // ── WeekCard ──────────────────────────────────────────────────────────────────
-function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onUpdateTimeSlot, onDragStart, onDragOver }: {
+function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas, onDelete, onToggleChecked, onRename, onUpdateTime, onUpdateTimeSlot, onDragStart, onDragOver, onTouchStart }: {
   session: SessionMeta
   project: Project | null | undefined
   recurringProgress: { done: number; total: number } | null
@@ -572,6 +661,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
   onUpdateTimeSlot: (startTime: string | null, estimatedMins: number | null) => void
   onDragStart: () => void
   onDragOver: (e: React.DragEvent<HTMLDivElement>) => void
+  onTouchStart: (e: React.TouchEvent<HTMLDivElement>) => void
 }) {
   const isMobile = useIsMobile()
   const [hovered, setHovered] = useState(false)
@@ -631,6 +721,7 @@ function WeekCard({ session, project, recurringProgress, isOverdue, onOpenCanvas
       draggable={!editing}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
+      onTouchStart={onTouchStart}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
